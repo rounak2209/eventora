@@ -4,18 +4,33 @@ require('dotenv').config(); // Environment variables ke liye
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const connectDB = require('./config/db');
+
+
+
+const authRoutes = require('./routes/authRoutes');
+
+
+
 
 // --- Middlewares ---
 app.use(cors()); // Frontend se connection allow karne ke liye
 app.use(express.json()); // JSON data padhne ke liye
 
 // --- Database Connection (Abhi ke liye hata diya hai) ---
+connectDB();
 // Jab baad mein MongoDB connect karna ho, tab wapas add kar lenge.
+
+
 
 // --- Test Route ---
 app.get('/', (req, res) => {
   res.send('Campus-Connect Server is Running! (Without DB) 🚀');
 });
+
+// --- Auth Routes ---
+app.use('/api/auth', authRoutes);
+
 
 // --- Start Server ---
 app.listen(PORT, () => {

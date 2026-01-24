@@ -1,18 +1,18 @@
 const mongoose = require('mongoose');
 
-// पोल के ऑप्शंस के लिए छोटा स्कीमा
+// Poll Schema (Same as before)
 const optionSchema = new mongoose.Schema({
   text: { type: String, required: true },
   votes: { type: Number, default: 0 }
 });
 
-// पोल के सवाल के लिए स्कीमा
 const pollSchema = new mongoose.Schema({
   question: { type: String, required: true },
-  options: [optionSchema] // ऊपर बनाए गए ऑप्शंस का एरे
+  options: [optionSchema]
 });
 
 const eventSchema = new mongoose.Schema({
+  // --- 1. BASIC INFO ---
   title: {
     type: String,
     required: [true, 'Please provide event title'],
@@ -22,6 +22,9 @@ const eventSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please provide description']
   },
+  // bannerUrl HATA DIYA ❌
+  
+  // --- 2. TIME & VENUE ---
   date: {
     type: Date,
     required: [true, 'Please provide event date']
@@ -31,16 +34,56 @@ const eventSchema = new mongoose.Schema({
     required: [true, 'Please provide venue'],
     trim: true
   },
+  registrationDeadline: { // ⏳ DEADLINE (Zaruri hai taaki entry band kar sakein)
+    type: Date,
+    required: true
+  },
+
+  // --- 3. CATEGORY & PRICE ---
+  category: {
+    type: String,
+    enum: ['Tech', 'Cultural', 'Sports', 'Workshop', 'Seminar'],
+    required: true
+  },
+  price: { // 💰 MONEY (0 matlab Free)
+    type: Number,
+    default: 0
+  },
+
+  // --- 4. SEATS & LIMITS ---
+  maxSeats: { // 🪑 CAPACITY (Example: 100 seats)
+    type: Number,
+    required: true
+  },
+  registeredCount: { // Kitne log ab tak aaye
+    type: Number,
+    default: 0
+  },
+
+  // --- 5. TEAM LOGIC (Developer 2 ke liye Important) ---
+  isTeamEvent: {
+    type: Boolean,
+    default: false
+  },
+  teamSize: { // Min-Max members (Agar team event hai)
+    min: { type: Number, default: 1 },
+    max: { type: Number, default: 1 }
+  },
+
+  // --- 6. LIVE FEATURES ---
   isLive: {
     type: Boolean,
-    default: false // एडमिन इसे 'true' करेगा तब लाइव वॉल चालू होगी
+    default: false
   },
-  polls: [pollSchema], // लाइव पोल्स का एरे
+  polls: [pollSchema],
+  
+  // --- 7. ORGANIZER ---
   organizer: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
+  
   createdAt: {
     type: Date,
     default: Date.now

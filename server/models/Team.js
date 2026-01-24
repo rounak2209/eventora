@@ -17,6 +17,11 @@ const teamSchema = new mongoose.Schema({
     ref: 'User',
     required: true // टीम बनाने वाला लीडर होगा
   },
+  code: {
+    type: String,
+    required: true,
+    unique: true
+  },
   members: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'

@@ -9,9 +9,9 @@ const connectDB = require('./config/db');
 
 
 const authRoutes = require('./routes/authRoutes');
-
-
-
+const eventRoutes = require('./routes/eventRoutes');
+const teamRoutes = require('./routes/teamRoutes');
+const registrationRoutes = require('./routes/registrationRoutes');
 
 // --- Middlewares ---
 app.use(cors()); // Frontend se connection allow karne ke liye
@@ -30,7 +30,9 @@ app.get('/', (req, res) => {
 
 // --- Auth Routes ---
 app.use('/api/auth', authRoutes);
-
+app.use('/api/events', eventRoutes);
+app.use('/api/teams', teamRoutes);
+app.use('/api/registrations', registrationRoutes);
 
 // --- Start Server ---
 app.listen(PORT, () => {

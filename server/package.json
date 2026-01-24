@@ -17,6 +17,8 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.1.5",
-    "nodemon": "^3.1.11"
+    "nodemailer": "^7.0.12",
+    "nodemon": "^3.1.11",
+    "qrcode": "^1.5.4"
   }
 }

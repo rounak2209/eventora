@@ -11,6 +11,13 @@ const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 
 
+const ticketRoutes = require('./routes/ticketRoutes'); 
+
+app.use('/api/ticket', ticketRoutes); 
+
+
+
+
 
 
 // --- Middlewares ---

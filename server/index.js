@@ -6,40 +6,34 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const connectDB = require('./config/db');
 
-
-
-const authRoutes = require('./routes/authRoutes');
-
-
-const ticketRoutes = require('./routes/ticketRoutes'); 
-
-app.use('/api/ticket', ticketRoutes); 
-
-
-
-
-
-
-// --- Middlewares ---
+// --- 1. Middlewares (SABSE PEHLE YE AAYEGA) ---
+// Note: Agar ye routes ke neeche hua, toh req.body undefined milega.
 app.use(cors()); // Frontend se connection allow karne ke liye
-app.use(express.json()); // JSON data padhne ke liye
+app.use(express.json()); // JSON data padhne ke liye (Most Important)
 
-// --- Database Connection (Abhi ke liye hata diya hai) ---
+// --- 2. Database Connection ---
 connectDB();
-// Jab baad mein MongoDB connect karna ho, tab wapas add kar lenge.
+
+// --- 3. Route Imports ---
+const authRoutes = require('./routes/authRoutes');
+const ticketRoutes = require('./routes/ticketRoutes'); 
+const eventRoutes = require('./routes/eventRoutes');
+const teamRoutes = require('./routes/teamRoutes');
 
 
+// --- 4. Routes Setup ---
+app.use('/api/ticket', ticketRoutes); 
+app.use('/api/auth', authRoutes);
+app.use('/api/events', eventRoutes);
+app.use('/api/teams', teamRoutes);
 
-// --- Test Route ---
+
+// --- 5. Test Route ---
 app.get('/', (req, res) => {
-  res.send('Campus-Connect Server is Running! (Without DB) 🚀');
+  res.send('Campus-Connect Server is Running! 🚀');
 });
 
-// --- Auth Routes ---
-app.use('/api/auth', authRoutes);
-
-
-// --- Start Server ---
+// --- 6. Start Server ---
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });

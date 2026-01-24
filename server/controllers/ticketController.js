@@ -1,75 +1,109 @@
-const Registration = require('../models/Registration'); // Ticket ka Model
-const QRCode = require('qrcode'); // QR library
-const sendEmail = require('../utils/sendEmail'); // Jo abhi banaya
+const Registration = require('../models/Registration');
+const Event = require('../models/Event');
+const Team = require('../models/Team'); // Team Model chahiye
+const QRCode = require('qrcode');
+const sendEmail = require('../utils/sendEmail');
 
-// @desc    Book Ticket & Send QR via Email
+// @desc    Bulk Book Tickets for Team (or Solo)
 // @route   POST /api/ticket/book
 const bookTicket = async (req, res) => {
   try {
     const { eventId } = req.body;
-    const userId = req.user._id; // Ye login user ki ID hai (Middleware se aayi)
-    const userEmail = req.user.email;
+    const userId = req.user._id;
 
-    // 1. Check: Kya banda pehle se booked hai?
-    const existingReg = await Registration.findOne({ user: userId, event: eventId });
-    if (existingReg) {
-      return res.status(400).json({ message: 'You have already booked this event! 🚫' });
+    // 1. Event ki details laao (Pata karne ke liye ki Team Event hai ya Solo)
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
     }
 
-    // 2. Unique QR String Generate karo
-    // Logic: UserID + EventID + Time (Taaki kabhi duplicate na ho)
-    const qrData = `${userId}-${eventId}-${Date.now()}`;
+    let membersToRegister = [];
+    let team = null;
+    // --- CASE A: TEAM EVENT ---
+    if (event.isTeamEvent) {
+      // 1. Check karo kya ye banda Leader hai?
+       team = await Team.findOne({ event: eventId, leader: userId })
+        .populate('members'); // ✨ Members ka Email nikalne ke liye populate zaruri hai
 
-    // 3. String ko QR Image (Base64) mein convert karo
-    const qrImage = await QRCode.toDataURL(qrData);
+      if (!team) {
+        return res.status(400).json({ message: "Aap Team Leader nahi hain ya Team nahi banayi hai!" });
+      }
 
-    // 4. Database mein Ticket Save karo
-    const ticket = await Registration.create({
-      user: userId,
-      event: eventId,
-      qrCodeId: qrData,
-      paymentStatus: 'Paid', // Abhi ke liye Paid maan lete hain
-      hasAttended: false
+      // Poori team ko list mein daal do
+      membersToRegister = team.members;
+    
+    // --- CASE B: SOLO EVENT ---
+    } else {
+      // Sirf current user ko list mein daalo
+      membersToRegister = [req.user]; 
+    }
+
+    // --- MAIN LOOP: Sabke liye Ticket Banao ---
+    const results = [];
+
+    for (const member of membersToRegister) {
+      try {
+        // A. Check agar member pehle se registered hai
+        const existingReg = await Registration.findOne({ user: member._id, event: eventId });
+        
+        if (existingReg) {
+            results.push({ email: member.email, status: "Already Registered" });
+            continue; // Skip karo aur agle member par jao
+        }
+
+        // B. Unique QR Data (Member ID + Event ID)
+        const qrData = `${member._id}-${eventId}-${Date.now()}`;
+        const qrImage = await QRCode.toDataURL(qrData);
+
+        // C. Ticket Database mein Save karo
+        const ticket = await Registration.create({
+          user: member._id,
+          event: eventId,
+          team: event.isTeamEvent ? team._id : null, // Agar team hai to ID dalo
+          qrCodeData: qrData,
+          paymentStatus: 'Paid',
+          hasAttended: false
+        });
+
+        // D. Email Bhejo (Har member ko alag mail)
+        const message = `
+          <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd;">
+            <h2 style="color: #4F46E5;">Hello ${member.name}, Ticket Confirmed! 🎉</h2>
+            <p>Your team leader has registered for <b>${event.title}</b>.</p>
+            <p>Here is your unique Entry Pass. Show this QR Code at the gate.</p>
+            <br>
+            <img src="cid:unique-qr-code" alt="QR Code" width="200" />
+            <p><b>Ticket ID:</b> ${ticket._id}</p>
+          </div>
+        `;
+
+        await sendEmail({
+          email: member.email, // ✨ Member ka email
+          subject: `Ticket for ${event.title} 🎟️`,
+          message,
+          attachments: [
+            {
+              filename: 'ticket-qr.png',
+              content: qrImage.split("base64,")[1],
+              encoding: 'base64',
+              cid: 'unique-qr-code' // Email body me image dikhane ke liye
+            }
+          ]
+        });
+
+        results.push({ email: member.email, status: "Success" });
+
+      } catch (err) {
+        console.log(`Error for ${member.email}:`, err.message);
+        results.push({ email: member.email, status: "Failed", error: err.message });
+      }
+    }
+
+    // Final Response Leader ko
+    res.status(201).json({
+      message: "Bulk Registration Processed",
+      results // Leader dekh payega kiska fail hua kiska pass
     });
-
-    // 5. Email Bhejo (QR Code attach karke)
-    const message = `
-      <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd;">
-        <h2 style="color: #4F46E5;">Ticket Confirmed! 🎉</h2>
-        <p>Hello,</p>
-        <p>Your seat for the event is confirmed. Please show the attached <b>QR Code</b> at the entry gate.</p>
-        <p style="background: #f4f4f4; padding: 10px;"><b>Ticket ID:</b> ${ticket._id}</p>
-        <p>See you there!<br>- Team Vortex</p>
-      </div>
-    `;
-
-    try {
-      await sendEmail({
-        email: userEmail,
-        subject: 'Your Vortex Event Ticket 🎟️',
-        message,
-        attachments: [
-          {
-            filename: 'ticket-qr.png',
-            content: qrImage.split("base64,")[1], // Base64 header hata diya
-            encoding: 'base64'
-          }
-        ]
-      });
-
-      res.status(201).json({ 
-        message: 'Ticket Booked & Email Sent Successfully! 📧', 
-        ticket 
-      });
-
-    } catch (emailError) {
-      console.log("Email Error:", emailError);
-      // Agar email fail hua, tab bhi ticket toh ban gaya hai
-      res.status(201).json({ 
-        message: 'Ticket Booked (But Email Failed - Check Console)', 
-        ticket 
-      });
-    }
 
   } catch (error) {
     res.status(500).json({ message: error.message });

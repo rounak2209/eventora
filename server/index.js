@@ -19,12 +19,13 @@ const authRoutes = require('./routes/authRoutes');
 const ticketRoutes = require('./routes/ticketRoutes'); 
 const eventRoutes = require('./routes/eventRoutes');
 const teamRoutes = require('./routes/teamRoutes');
-
+const certRoutes = require('./routes/certRoutes');
 
 // --- 4. Routes Setup ---
 app.use('/api/ticket', ticketRoutes); 
 app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes);
+app.use('/api/certificate', certRoutes);
 app.use('/api/teams', teamRoutes);
 
 

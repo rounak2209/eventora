@@ -36,6 +36,9 @@ const registrationSchema = new mongoose.Schema({
     type: String,
     unique: true,
     sparse: true // 'sparse' का मतलब है कि यह फील्ड null हो सकता है, लेकिन अगर वैल्यू है तो वह यूनिक होनी चाहिए
+  },
+  issuedAt: {
+    type: Date
   }
 }, { timestamps: true });
 

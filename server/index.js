@@ -8,13 +8,6 @@ const connectDB = require('./config/db');
 
 // --- 1. Middlewares (SABSE PEHLE YE AAYEGA) ---
 // Note: Agar ye routes ke neeche hua, toh req.body undefined milega.
-
-
-const authRoutes = require('./routes/authRoutes');
-const eventRoutes = require('./routes/eventRoutes');
-const teamRoutes = require('./routes/teamRoutes');
-
-// --- Middlewares ---
 app.use(cors()); // Frontend se connection allow karne ke liye
 app.use(express.json()); // JSON data padhne ke liye (Most Important)
 
@@ -40,8 +33,7 @@ app.get('/', (req, res) => {
   res.send('Campus-Connect Server is Running! 🚀');
 });
 
-
-// --- Start Server ---
+// --- 6. Start Server ---
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });

@@ -7,11 +7,7 @@
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
-<<<<<<< HEAD
     "dev": "nodemon index.js",
-=======
-    "dev": "node index.js",
->>>>>>> 5acc0f7f2b84ad3f34b827dcff7da5952e0ab26d
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {

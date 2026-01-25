@@ -1,9 +1,12 @@
 const Registration = require('../models/Registration');
 const Event = require('../models/Event');
-const Team = require('../models/Team'); // Team Model chahiye
+const Team = require('../models/Team'); 
 const QRCode = require('qrcode');
 const sendEmail = require('../utils/sendEmail');
 
+// ==========================================
+// 1. BOOK TICKET (Email + QR Generation)
+// ==========================================
 // @desc    Bulk Book Tickets for Team (or Solo)
 // @route   POST /api/ticket/book
 const bookTicket = async (req, res) => {
@@ -11,7 +14,7 @@ const bookTicket = async (req, res) => {
     const { eventId } = req.body;
     const userId = req.user._id;
 
-    // 1. Event ki details laao (Pata karne ke liye ki Team Event hai ya Solo)
+    // 1. Event ki details laao
     const event = await Event.findById(eventId);
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
@@ -19,22 +22,21 @@ const bookTicket = async (req, res) => {
 
     let membersToRegister = [];
     let team = null;
+
     // --- CASE A: TEAM EVENT ---
     if (event.isTeamEvent) {
-      // 1. Check karo kya ye banda Leader hai?
-       team = await Team.findOne({ event: eventId, leader: userId })
-        .populate('members'); // ✨ Members ka Email nikalne ke liye populate zaruri hai
+      // Check karo kya ye banda Leader hai?
+      team = await Team.findOne({ event: eventId, leader: userId })
+        .populate('members'); 
 
       if (!team) {
         return res.status(400).json({ message: "Aap Team Leader nahi hain ya Team nahi banayi hai!" });
       }
 
-      // Poori team ko list mein daal do
       membersToRegister = team.members;
     
     // --- CASE B: SOLO EVENT ---
     } else {
-      // Sirf current user ko list mein daalo
       membersToRegister = [req.user]; 
     }
 
@@ -48,10 +50,10 @@ const bookTicket = async (req, res) => {
         
         if (existingReg) {
             results.push({ email: member.email, status: "Already Registered" });
-            continue; // Skip karo aur agle member par jao
+            continue; 
         }
 
-        // B. Unique QR Data (Member ID + Event ID)
+        // B. Unique QR Data (Member ID + Event ID + Time)
         const qrData = `${member._id}-${eventId}-${Date.now()}`;
         const qrImage = await QRCode.toDataURL(qrData);
 
@@ -59,17 +61,17 @@ const bookTicket = async (req, res) => {
         const ticket = await Registration.create({
           user: member._id,
           event: eventId,
-          team: event.isTeamEvent ? team._id : null, // Agar team hai to ID dalo
+          team: event.isTeamEvent ? team._id : null,
           qrCodeData: qrData,
           paymentStatus: 'Paid',
           hasAttended: false
         });
 
-        // D. Email Bhejo (Har member ko alag mail)
+        // D. Email Bhejo
         const message = `
           <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd;">
             <h2 style="color: #4F46E5;">Hello ${member.name}, Ticket Confirmed! 🎉</h2>
-            <p>Your team leader has registered for <b>${event.title}</b>.</p>
+            <p>Your registration for <b>${event.title}</b> is successful.</p>
             <p>Here is your unique Entry Pass. Show this QR Code at the gate.</p>
             <br>
             <img src="cid:unique-qr-code" alt="QR Code" width="200" />
@@ -78,7 +80,7 @@ const bookTicket = async (req, res) => {
         `;
 
         await sendEmail({
-          email: member.email, // ✨ Member ka email
+          email: member.email,
           subject: `Ticket for ${event.title} 🎟️`,
           message,
           attachments: [
@@ -86,7 +88,7 @@ const bookTicket = async (req, res) => {
               filename: 'ticket-qr.png',
               content: qrImage.split("base64,")[1],
               encoding: 'base64',
-              cid: 'unique-qr-code' // Email body me image dikhane ke liye
+              cid: 'unique-qr-code'
             }
           ]
         });
@@ -99,10 +101,9 @@ const bookTicket = async (req, res) => {
       }
     }
 
-    // Final Response Leader ko
     res.status(201).json({
       message: "Bulk Registration Processed",
-      results // Leader dekh payega kiska fail hua kiska pass
+      results
     });
 
   } catch (error) {
@@ -110,4 +111,53 @@ const bookTicket = async (req, res) => {
   }
 };
 
-module.exports = { bookTicket };
+// ==========================================
+// 2. VERIFY TICKET (Scanner Logic) - NEW 🚀
+// ==========================================
+// @desc    Verify Ticket at Gate
+// @route   POST /api/ticket/verify
+const verifyTicket = async (req, res) => {
+  try {
+    const { qrData } = req.body; // Scanner se ye data aayega
+
+    // 1. Database mein dhundo
+    const ticket = await Registration.findOne({ qrCodeData: qrData })
+      .populate('user', 'name email department'); // User ki details lao
+
+    if (!ticket) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "❌ Invalid Ticket! (Fake hai ya Database mein nahi hai)" 
+      });
+    }
+
+    // 2. Check karo: Kya ye ticket pehle hi use ho chuka hai?
+    if (ticket.hasAttended) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "⚠️ Ticket Already Used! (Ye banda pehle hi entry le chuka hai)" 
+      });
+    }
+
+    // 3. Sab sahi hai -> Entry Confirm karo aur Attendance mark karo
+    ticket.hasAttended = true;
+    ticket.checkInTime = Date.now();
+    await ticket.save();
+
+    res.status(200).json({
+      success: true,
+      message: "✅ Entry Granted!",
+      student: {
+        name: ticket.user.name,
+        department: ticket.user.department,
+        email: ticket.user.email
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Dono functions ko export karo
+module.exports = { bookTicket, verifyTicket };

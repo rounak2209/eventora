@@ -21,14 +21,15 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please provide a password'],
     minlength: 6,
-    select: false // पासवर्ड को डिफ़ॉल्ट रूप से क्वेरी में शामिल न करें
+    select: false // Password hide rakho
   },
   role: {
     type: String,
-    enum: ['student', 'admin'],
+    enum: ['student', 'admin', 'organizer'], // Organizer bhi add kar diya future ke liye
     default: 'student'
   },
-  // --- ANALYTICS FIELDS (जरूरी हैं) ---
+  
+  // --- ANALYTICS FIELDS ---
   gender: {
     type: String,
     enum: ['Male', 'Female', 'Other'],
@@ -44,7 +45,15 @@ const userSchema = new mongoose.Schema({
     enum: ['1st', '2nd', '3rd', '4th'],
     required: [true, 'Please select year']
   },
-  // ------------------------------------
+
+  // --- 🔥 NEW: OTP FIELDS (Forgot Password ke liye) ---
+  otp: {
+    type: String
+  },
+  otpExpire: {
+    type: Date
+  },
+
   createdAt: {
     type: Date,
     default: Date.now

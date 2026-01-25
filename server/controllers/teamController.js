@@ -5,7 +5,8 @@ const Event = require('../models/Event');
 // Route: POST /api/teams/create
 const createTeam = async (req, res) => {
   try {
-    const { name, eventId } = req.body;
+    // 👇 skillMatchMode add kiya hai
+    const { name, eventId, description, requiredSkills, requiredYear, skillMatchMode } = req.body;
     const userId = req.user._id;
 
     // A. Check: Kya Event exist karta hai?
@@ -28,13 +29,18 @@ const createTeam = async (req, res) => {
     const code = "TEAM-" + Math.floor(1000 + Math.random() * 9000);
 
     // D. Team Save karo
-    // (Dhyan dena: Yahan hum 'team' bana rahe hain)
     const team = await Team.create({
       name,
-      code, // Model update karne ke baad ye zaroori hai
+      code, 
       event: eventId,
       leader: userId,
-      members: [userId]
+      members: [userId],
+      description: description || "Join us to win!",
+      requiredSkills: requiredSkills || [],
+      requiredYear: requiredYear || [],
+      
+      // 👇 NEW: Preference Save Karo (Default FLEXIBLE)
+      skillMatchMode: skillMatchMode || 'FLEXIBLE' 
     });
 
     res.status(201).json({ 
@@ -61,7 +67,7 @@ const joinTeam = async (req, res) => {
       return res.status(404).json({ message: "Invalid Team Code or Wrong Event" });
     }
 
-    // B. Check Limit (Yaha console.log laga sakte ho agar check karna hai)
+    // B. Check Limit 
     const event = await Event.findById(eventId);
     
     if (team.members.length >= event.teamSize.max) {
@@ -87,16 +93,13 @@ const joinTeam = async (req, res) => {
   }
 };
 
-
 // GET TEAM DETAILS
 // Route: GET /api/teams/my-team
 const getMyTeam = async (req, res) => {
   try {
-    // 1. Check karo user kis team ka hissa hai
-    // Hum dhoond rahe hain wo team jiske 'members' array mein ye user ho
     const team = await Team.findOne({ members: req.user.id })
-      .populate('members', 'name email department') // ✨ MAGIC: ID hata ke User ka data layega
-      .populate('event', 'name date'); // Event ki details bhi le aayega
+      .populate('members', 'name email department') 
+      .populate('event', 'name date'); 
 
     if (!team) {
       return res.status(404).json({ message: "You are not part of any team" });
@@ -107,8 +110,5 @@ const getMyTeam = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
-
-
 
 module.exports = { createTeam, joinTeam, getMyTeam };

@@ -44,6 +44,18 @@ const userSchema = new mongoose.Schema({
     enum: ['1st', '2nd', '3rd', '4th'],
     required: [true, 'Please select year']
   },
+  skills: [{
+  type: String,
+  trim: true
+}],
+bio: { // Chhota intro (e.g., "I am a frontend dev looking for a team")
+  type: String,
+  default: ""
+},
+isLookingForTeam: { // User on/off kar sakta hai
+  type: Boolean,
+  default: true
+},
   // ------------------------------------
   createdAt: {
     type: Date,

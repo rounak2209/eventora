@@ -26,6 +26,26 @@ const teamSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }], // टीम के अन्य सदस्यों की लिस्ट
+  description: { // Project idea kya hai?
+  type: String 
+},
+requiredSkills: [{ // Kaise bande chahiye? (e.g. "Video Editor", "Backend")
+  type: String,
+  trim: true
+}],
+skillMatchMode: {
+    type: String,
+    enum: ['STRICT', 'FLEXIBLE'], // STRICT = All match, FLEXIBLE = Any match
+    default: 'FLEXIBLE'            // Default flexible rakhte hain
+  },
+requiredYear: [{ // Array isliye taaki multiple years allow kar sakein (e.g. ["3rd", "4th"])
+    type: String, 
+    enum: ['1st', '2nd', '3rd', '4th'] 
+  }],
+isOpen: { // Kya vacancy open hai?
+  type: Boolean,
+  default: true
+},
   createdAt: {
     type: Date,
     default: Date.now

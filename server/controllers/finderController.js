@@ -3,34 +3,31 @@ const Team = require('../models/Team');
 const TeamRequest = require('../models/TeamRequest');
 const Event = require('../models/Event');
 
-// 🔥 HELPER FUNCTION: Check Logic (Strict vs Flexible)
-// Ise hum 'findMatchingTeams' aur 'sendRequest' dono me use karenge
+// 🔥 HELPER: Skill Match Logic
 const checkSkillMatch = (userSkills, teamSkills, mode) => {
-  // Sab lowercase kar lo comparison ke liye
-  const uSkills = userSkills.map(s => s.toLowerCase());
-  const tSkills = teamSkills.map(s => s.toLowerCase());
+  if (!userSkills) userSkills = [];
+  if (!teamSkills) teamSkills = [];
+  
+  const uSkills = userSkills.map(s => s.toLowerCase().trim());
+  const tSkills = teamSkills.map(s => s.toLowerCase().trim());
 
-  if (!tSkills || tSkills.length === 0) return true; // Agar koi demand hi nahi hai to sab pass
+  if (!tSkills || tSkills.length === 0) return true; 
 
   if (mode === 'STRICT') {
-    // STRICT: User ke paas Team ki SAARI skills honi chahiye
     return tSkills.every(skill => uSkills.includes(skill));
   } else {
-    // FLEXIBLE: User ke paas Team ki KOI EK skill bhi ho to chalega
     return tSkills.some(skill => uSkills.includes(skill));
   }
 };
 
-// 1. UPDATE USER SKILLS (Profile Setup)
+// 1. UPDATE USER PROFILE
 const updateProfile = async (req, res) => {
   try {
     const { skills, bio, isLookingForTeam } = req.body;
     
     const user = await User.findByIdAndUpdate(req.user._id, {
-      skills,
-      bio,
-      isLookingForTeam
-    }, { new: true });
+      skills, bio, isLookingForTeam
+    }, { new: true }).select('-password');
 
     res.json({ message: "Profile Updated", user });
   } catch (error) {
@@ -38,68 +35,98 @@ const updateProfile = async (req, res) => {
   }
 };
 
-// 2. FIND SOLO CANDIDATES (Flexible Filter)
-const findSoloUsers = async (req, res) => {
+// 2. GET AVAILABLE USERS (Fix: Staff Hide & Self Hide)
+const getAvailableUsers = async (req, res) => {
   try {
-    const { eventId, skills } = req.query; 
+    // 1. Khud ko hatao ($ne: req.user._id)
+    // 2. Sirf 'student' role walon ko dikhao
+    const users = await User.find({ 
+        _id: { $ne: req.user._id },
+        role: 'student'  // 👈 Ye line STAFF ko filter karegi
+    })
+      .select('name email skills bio department year role') 
+      .limit(50); 
 
-    // 1. Booked Users nikalo
-    const teams = await Team.find({ event: eventId }).select('members');
-    let bookedUserIds = [];
-    teams.forEach(team => bookedUserIds.push(...team.members));
+    res.status(200).json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
-    // 2. Basic Query
-    let query = {
-      _id: { $nin: bookedUserIds },
-      isLookingForTeam: true
-    };
+// 3. GET STUDENTS (Legacy / Event-Based Filter)
+const getStudents = async (req, res) => {
+  try {
+    const { eventId, skills, search } = req.query; 
 
-    // 3. SKILL FILTER LOGIC
-    if (skills) {
-      const skillArray = skills.split(',');
-      query.skills = { 
-        $in: skillArray.map(s => new RegExp(s, 'i')) 
-      };
+    let query = { 
+        isLookingForTeam: true,
+        role: 'student' // 👈 Staff Hide
+    }; 
+
+    if (eventId) {
+      const teams = await Team.find({ event: eventId }).select('members leader');
+      let bookedUserIds = [];
+      teams.forEach(team => {
+        bookedUserIds.push(...team.members);
+        bookedUserIds.push(team.leader);
+      });
+      query._id = { $nin: bookedUserIds }; 
     }
 
-    const soloUsers = await User.find(query).select('name email skills bio year department');
-    res.json(soloUsers);
+    if (skills) {
+      const skillArray = skills.split(',').map(s => s.trim());
+      query.skills = { $in: skillArray.map(s => new RegExp(s, 'i')) };
+    }
+
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { department: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    if (req.user) {
+        if (query._id) {
+            query._id.$nin.push(req.user._id);
+        } else {
+            query._id = { $ne: req.user._id };
+        }
+    }
+
+    const students = await User.find(query)
+      .select('name email skills bio year department isLookingForTeam role')
+      .lean();
+
+    res.json(students);
 
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// 3. FIND MATCHING TEAMS (Strict/Flexible Based)
+// 4. FIND MATCHING TEAMS
 const findMatchingTeams = async (req, res) => {
   try {
     const { eventId } = req.query;
     const userId = req.user._id;
 
-    // 1. User ka Data nikalo
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).lean();
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // 2. Event ki wo saari teams lao jo "OPEN" hain
-    const allTeams = await Team.find({ event: eventId, isOpen: true })
-      .populate('leader', 'name email')
-      .select('name description requiredSkills requiredYear members skillMatchMode'); // 👈 skillMatchMode select karna mat bhoolna
+    const allTeams = await Team.find({ 
+      event: eventId, 
+      isOpen: true,
+      leader: { $ne: userId },
+      members: { $ne: userId }
+    })
+    .populate('leader', 'name email')
+    .lean();
 
-    // 3. ✨ DYNAMIC FILTERING LOGIC ✨
     const matchingTeams = allTeams.filter(team => {
-      
-      // A. Check Year Requirement (Hamesha Strict)
-      if (team.requiredYear && team.requiredYear.length > 0) {
-        if (!team.requiredYear.includes(user.year)) {
-          return false; 
-        }
+      if (team.requiredYear?.length > 0 && !team.requiredYear.includes(user.year)) {
+        return false; 
       }
-
-      // B. Check Skills Requirement (Based on Team Mode)
-      // 👇 HELPER FUNCTION USE KIYA
-      const isQualified = checkSkillMatch(user.skills, team.requiredSkills, team.skillMatchMode);
-      
-      return isQualified; // Agar true hai to team dikhegi, nahi to nahi
+      return checkSkillMatch(user.skills, team.requiredSkills, team.skillMatchMode);
     });
 
     res.json(matchingTeams);
@@ -109,64 +136,63 @@ const findMatchingTeams = async (req, res) => {
   }
 };
 
-// 4. SEND REQUEST (With Validation)
+// 5. SEND REQUEST (Fix: Handle Duplicate Key Error)
 const sendRequest = async (req, res) => {
   try {
-    const { teamId, userId, eventId, type, message } = req.body;
+    const { teamId, recipientId, type, message } = req.body;
     
-    // Check existing request
-    const existing = await TeamRequest.findOne({ team: teamId, user: userId, event: eventId });
-    if (existing) return res.status(400).json({ message: "Request already pending." });
+    const targetUserId = recipientId || req.user._id;
+    const requestType = type || (recipientId ? 'INVITE' : 'JOIN_REQUEST');
 
     const team = await Team.findById(teamId);
-    const user = await User.findById(userId);
-    const event = await Event.findById(eventId);
+    if (!team) return res.status(404).json({ message: "Team not found" });
 
-    if (!user) return res.status(404).json({ message: `User not found` });
+    const eventId = team.event; 
 
-    // --- 🔒 SECURITY CHECK ---
-    if (type === 'JOIN_REQUEST') {
-      // 1. Year Check
-      if (team.requiredYear.length > 0 && !team.requiredYear.includes(user.year)) {
-        return res.status(400).json({ message: `Criteria Mismatch: This team requires ${team.requiredYear.join('/')} year students.` });
-      }
-
-      // 2. Skill Check (Dynamic)
-      // 👇 HELPER FUNCTION USE KIYA
-      const isQualified = checkSkillMatch(user.skills, team.requiredSkills, team.skillMatchMode);
-      
-      if (!isQualified) {
-         // Message bhi dynamic bana diya
-         const msg = team.skillMatchMode === 'STRICT' 
-           ? "Missing skills! This team requires ALL listed skills."
-           : "Missing skills! You need at least ONE matching skill.";
-         return res.status(400).json({ message: msg });
-      }
-    }
-    // -----------------------------
-
-    // Check Limit
-    if (team.members.length >= event.teamSize.max) {
-      return res.status(400).json({ message: "Team is already full!" });
+    // 🔥 FIX: Check existing request logic
+    const existing = await TeamRequest.findOne({ 
+        team: teamId, 
+        user: targetUserId,
+        event: eventId
+    });
+    
+    if (existing) {
+        if (existing.status === 'PENDING') {
+             return res.status(400).json({ message: "Request already pending." });
+        } 
+        else if (existing.status === 'ACCEPTED') {
+             return res.status(400).json({ message: "User is already in the team." });
+        }
+        else if (existing.status === 'REJECTED') {
+             // 💡 Agar purani request REJECT hui thi, to use delete karo taaki nayi bana sakein.
+             // Ye E11000 duplicate error ko rokega.
+             await TeamRequest.findByIdAndDelete(existing._id);
+        }
     }
 
+    // Create New Request
     await TeamRequest.create({
       team: teamId,
-      user: userId,
+      user: targetUserId,
       event: eventId,
-      type, 
+      type: requestType, 
       status: 'PENDING',
-      message
+      message: message || "Let's connect!"
     });
 
-    res.status(201).json({ message: "Request Sent Successfully! 📩" });
+    res.status(201).json({ message: "Request Sent! 📩" });
 
   } catch (error) {
+    console.error("Send Request Error:", error);
+    // Agar abhi bhi duplicate key error aaye to handle karo
+    if (error.code === 11000) {
+        return res.status(400).json({ message: "Request already exists." });
+    }
     res.status(500).json({ message: error.message });
   }
 };
 
-// 5. MANAGE REQUESTS (Accept/Reject)
+// 6. HANDLE REQUEST (Accept/Reject)
 const handleRequest = async (req, res) => {
   try {
     const { requestId, action } = req.body; 
@@ -178,53 +204,72 @@ const handleRequest = async (req, res) => {
 
     if (!request) return res.status(404).json({ message: "Request not found" });
 
+    // --- SECURITY CHECK ---
     if (request.type === 'JOIN_REQUEST') {
-      if (request.team.leader.toString() !== userId.toString()) {
-        return res.status(403).json({ message: "Only Team Leader can accept join requests." });
-      }
-    } else if (request.type === 'INVITE') {
-      if (request.user.toString() !== userId.toString()) {
-        return res.status(403).json({ message: "This invite is not for you." });
-      }
+        if (request.team.leader.toString() !== userId.toString()) {
+            return res.status(403).json({ message: "Only Team Leader can manage join requests" });
+        }
+    }
+    if (request.type === 'INVITE') {
+        if (request.user.toString() !== userId.toString()) {
+            return res.status(403).json({ message: "This invite is not for you" });
+        }
     }
 
+    // --- REJECT ---
     if (action === 'REJECT') {
       request.status = 'REJECTED';
       await request.save();
-      return res.json({ message: "Request Rejected." });
+      return res.json({ message: "Request Rejected" });
     }
 
+    // --- ACCEPT ---
     if (action === 'ACCEPT') {
-      if (request.team.members.length >= request.event.teamSize.max) {
-        return res.status(400).json({ message: "Team is now full. Cannot accept." });
+      const team = await Team.findById(request.team._id);
+      const maxMembers = 4; 
+
+      if ((team.members.length + 1) >= maxMembers) {
+        return res.status(400).json({ message: "Team is full now." });
       }
 
-      await Team.findByIdAndUpdate(request.team._id, {
-        $push: { members: request.user }
-      });
+      if (!team.members.includes(request.user)) {
+         team.members.push(request.user);
+         await team.save();
+      }
 
       request.status = 'ACCEPTED';
       await request.save();
       
-      return res.json({ message: "Welcome to the Team! 🎉" });
+      return res.json({ message: "Request Accepted! 🎉" });
     }
 
   } catch (error) {
+    console.error("Handle Request Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// 6. GET MY REQUESTS (Notifications)
+// 7. GET MY REQUESTS (Inbox Fix)
 const getMyRequests = async (req, res) => {
   try {
+    const userId = req.user._id;
+    
+    // 1. My Teams (Where I am Leader) -> To see Join Requests
+    const myTeams = await Team.find({ leader: userId }).select('_id');
+    const myTeamIds = myTeams.map(t => t._id);
+
+    // 2. Fetch Relevant Requests
     const requests = await TeamRequest.find({
       $or: [
-        { user: req.user._id }, 
-        { team: { $in: await Team.find({ leader: req.user._id }).distinct('_id') } } 
+        // Case A: I received an INVITE (I am the user)
+        { user: userId, type: 'INVITE', status: 'PENDING' },
+        
+        // Case B: Someone wants to JOIN my team (My team ID is in 'team')
+        { team: { $in: myTeamIds }, type: 'JOIN_REQUEST', status: 'PENDING' }
       ]
     })
-    .populate('user', 'name skills')
-    .populate('team', 'name')
+    .populate('user', 'name skills department')
+    .populate('team', 'name leader')
     .sort({ createdAt: -1 });
 
     res.json(requests);
@@ -234,4 +279,12 @@ const getMyRequests = async (req, res) => {
   }
 };
 
-module.exports = { updateProfile, findSoloUsers, findMatchingTeams, sendRequest, handleRequest, getMyRequests };
+module.exports = { 
+    updateProfile, 
+    getAvailableUsers, 
+    getStudents, 
+    findMatchingTeams, 
+    sendRequest, 
+    handleRequest, 
+    getMyRequests 
+};

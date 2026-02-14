@@ -1,69 +1,90 @@
-import React, { useContext } from 'react';
-import { Layout, LogIn, UserPlus, Calendar, LogOut, User } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import AuthContext from '../context/AuthContext'; // Context import kiya
+import React, { useContext, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import AuthContext from '../context/AuthContext';
+import { Menu, X, User, LogOut } from 'lucide-react';
 
 const Navbar = () => {
-  const { user, logoutUser } = useContext(AuthContext); // Context se data nikala
+  const { user, logoutUser } = useContext(AuthContext);
+  const location = useLocation();
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Helper to check active link
+  const isActive = (path) => location.pathname === path ? "text-blue-600 font-bold bg-blue-50" : "text-gray-600 hover:text-blue-600 hover:bg-gray-50";
 
   return (
-    <nav className="bg-white shadow-md px-6 py-4 flex justify-between items-center sticky top-0 z-50">
-      {/* Logo */}
-      <Link to="/" className="flex items-center gap-2 font-bold text-2xl text-blue-600 hover:opacity-90 transition-opacity">
-        <Layout size={28} className="text-blue-600" />
-        <span className="tracking-tight text-gray-800">CampusConnect</span>
-      </Link>
+    <nav className="bg-white border-b border-gray-100 sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16">
+          
+          {/* Logo */}
+          <div className="flex items-center">
+            <Link to="/" className="text-4xl font-black text-blue-600 tracking-tighter">
+              Eventora<span className="text-gray-900">.</span>
+            </Link>
+          </div>
 
-      {/* Navigation Links (Desktop) */}
-      <div className="hidden md:flex items-center gap-8 font-medium">
-        <Link to="/" className="text-gray-600 hover:text-blue-600 transition flex items-center gap-1">
-          <Calendar size={18} /> Events
-        </Link>
-        
-        {/* 👇 CONDITIONAL RENDERING (Jadoo yahan hai) */}
-        {user ? (
-          // AGAR USER LOGIN HAI TO YE DIKHEGA
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-2 text-gray-700 font-semibold bg-gray-100 px-3 py-1 rounded-full">
-              <User size={18} className="text-blue-600" />
-              Hi, {user.name || "Student"} 
-            </span>
+          {/* Desktop Menu */}
+          <div className="hidden md:flex items-center space-x-4">
+            <Link to="/" className={`px-3 py-2 rounded-lg text-sm transition-colors ${isActive('/')}`}>
+              Home
+            </Link>
+            
+            {user ? (
+              <>
+                <Link to="/finder" className={`px-3 py-2 rounded-lg text-sm transition-colors ${isActive('/finder')}`}>
+                  Find Teammates
+                </Link>
+                <Link to="/dashboard" className={`px-3 py-2 rounded-lg text-sm transition-colors ${isActive('/dashboard')}`}>
+                  Dashboard
+                </Link>
+                <button 
+                  onClick={logoutUser}
+                  className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-all"
+                >
+                  <LogOut size={16} /> Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className={`px-3 py-2 rounded-lg text-sm transition-colors ${isActive('/login')}`}>
+                  Login
+                </Link>
+                <Link to="/register" className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-all shadow-sm">
+                  Get Started
+                </Link>
+              </>
+            )}
+          </div>
 
-            <button 
-              onClick={logoutUser}
-              className="flex items-center gap-2 px-5 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors font-semibold"
-            >
-              <LogOut size={18} /> Logout
+          {/* Mobile Menu Button */}
+          <div className="md:hidden flex items-center">
+            <button onClick={() => setIsOpen(!isOpen)} className="text-gray-600 hover:text-gray-900 focus:outline-none">
+              {isOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
           </div>
-        ) : (
-          // AGAR USER LOGIN NAHI HAI TO YE DIKHEGA
-          <div className="flex gap-3">
-            {/* Login Link */}
-            <Link 
-              to="/login" 
-              className="flex items-center gap-2 px-5 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-semibold"
-            >
-              <LogIn size={18} /> Login
-            </Link>
+        </div>
+      </div>
 
-            {/* Register Link */}
-            <Link 
-              to="/register" 
-              className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-md hover:shadow-lg transition-all font-semibold"
-            >
-              <UserPlus size={18} /> Register
-            </Link>
+      {/* Mobile Menu Dropdown */}
+      {isOpen && (
+        <div className="md:hidden bg-white border-t border-gray-100 py-2">
+          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+            <Link to="/" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">Home</Link>
+            {user ? (
+              <>
+                <Link to="/finder" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">Find Teammates</Link>
+                <Link to="/dashboard" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">Dashboard</Link>
+                <button onClick={logoutUser} className="w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-600 hover:bg-red-50">Logout</button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">Login</Link>
+                <Link to="/register" className="block px-3 py-2 rounded-md text-base font-medium text-blue-600 hover:bg-blue-50">Register</Link>
+              </>
+            )}
           </div>
-        )}
-      </div>
-
-      {/* Mobile Menu Icon */}
-      <div className="md:hidden text-gray-600">
-         <button className="p-2">
-            <Layout size={24} />
-         </button>
-      </div>
+        </div>
+      )}
     </nav>
   );
 };

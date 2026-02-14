@@ -1,68 +1,72 @@
 const Event = require('../models/Event');
 
-// 1. CREATE EVENT (Updated for New Model)
-// Route: POST /api/events
+// 1. CREATE EVENT (Admin/Organizer)
 const createEvent = async (req, res) => {
   try {
-    // Frontend se saara data nikaalo (Naye fields ke saath)
     const { 
-      title, 
-      description, 
-      date, 
-      venue, 
-      registrationDeadline, 
-      category, 
-      price, 
-      maxSeats, 
-      isTeamEvent, 
-      teamSize, 
-      isLive 
+      title, description, date, venue, registrationDeadline, 
+      category, price, maxSeats, isTeamEvent, teamSize, isLive 
     } = req.body;
 
-    // Validation: Check karo zaruri fields bhare hain ya nahi
     if (!title || !description || !date || !venue || !registrationDeadline || !category || !maxSeats) {
-      return res.status(400).json({ message: 'Please fill all required fields (Title, Date, Venue, Deadline, Category, Seats)' });
+      return res.status(400).json({ message: 'Please fill all required fields' });
     }
 
-    // Database me naya event banao
     const event = await Event.create({
-      title,
-      description,
-      date,
-      venue,
-      registrationDeadline, // New
-      category,            // New
-      price: price || 0,   // Agar price nahi diya toh 0 (Free)
-      maxSeats,            // New
+      title, description, date, venue, registrationDeadline, category,
+      price: price || 0,
+      maxSeats,
       isTeamEvent: isTeamEvent || false,
-      teamSize: teamSize || { min: 1, max: 1 }, // Default team size
+      teamSize: teamSize || { min: 1, max: 1 },
       isLive: isLive || false,
-      organizer: req.user._id // Middleware se aayi ID
+      organizer: req.user._id
     });
 
-    res.status(201).json({ 
-      message: "Event Created Successfully! 🎉", 
-      event 
-    });
-
+    res.status(201).json({ message: "Event Created Successfully! 🎉", event });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
 // 2. GET ALL EVENTS
-// Route: GET /api/events
 const getEvents = async (req, res) => {
   try {
-    // Events laao aur Organizer ka naam bhi show karo (.populate)
     const events = await Event.find()
-      .populate('organizer', 'name email') // Organizer ki details bhi aa jayengi
-      .sort({ date: 1 }); // Jo pehle hone wala hai wo upar
-      
+      .populate('organizer', 'name email')
+      .sort({ date: 1 });
     res.json(events);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-module.exports = { createEvent, getEvents };
+// 3. JOIN EVENT (Solo Logic) 🔥 UPDATED WITH ID CHECK
+const joinEvent = async (req, res) => {
+  try {
+    const { eventId } = req.body;
+    const userId = req.user._id;
+
+    const event = await Event.findById(eventId);
+    if (!event) return res.status(404).json({ message: "Event not found" });
+
+    if (event.isTeamEvent) {
+      return res.status(400).json({ message: "This is a Team Event. Please create or join a team." });
+    }
+
+    // 🔥 String conversion added for safe ID matching
+    const isAlreadyJoined = event.participants.some(p => p.toString() === userId.toString());
+
+    if (isAlreadyJoined) {
+      return res.status(400).json({ message: "You have already joined this event!" });
+    }
+
+    event.participants.push(userId);
+    await event.save();
+
+    res.json({ message: "Successfully registered! 🚀" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { createEvent, getEvents, joinEvent };

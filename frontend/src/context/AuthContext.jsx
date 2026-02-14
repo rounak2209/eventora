@@ -1,7 +1,7 @@
 import { createContext, useState, useEffect } from "react";
 import axios from "axios";
-import { toast } from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
 
 const AuthContext = createContext();
 
@@ -10,77 +10,132 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Backend URL (Port 5000 check kar lena)
-  const API_URL = "http://localhost:5000/api/auth";
+  // --- Helper: JWT Token Decoder ---
+  const parseJwt = (token) => {
+    try {
+      return JSON.parse(atob(token.split('.')[1]));
+    } catch (e) {
+      return null;
+    }
+  };
 
-  // 1. App start hote hi check karo ki User pehle se login hai kya?
   useEffect(() => {
-    const checkUserLoggedIn = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        if (token) {
-          // Yahan hum future mein /me endpoint call kar sakte hain user verify karne ke liye
-          // Abhi ke liye bas token hone par user ko "logged in" maan rahe hain
-          setUser({ token }); 
-        }
-      } catch (error) {
-        console.error("Auth Check Failed", error);
-        localStorage.removeItem("token");
-      } finally {
-        setLoading(false);
-      }
-    };
     checkUserLoggedIn();
   }, []);
 
-  // 2. Register Function
-  const registerUser = async (userData) => {
-    try {
-      const res = await axios.post(`${API_URL}/register`, userData);
+  const checkUserLoggedIn = async () => {
+    const token = localStorage.getItem("token");
+    
+    if (token) {
+      // STEP 1: TURANT Token se Data nikalo (Instant Login)
+      // Isse page blank nahi hoga
+      const decoded = parseJwt(token);
       
-      if (res.data) {
-        localStorage.setItem("token", res.data.token); // Token save karo
-        setUser(res.data); // State update karo
-        toast.success("Registration Successful! 🎉");
-        navigate("/"); // Home page par bhej do
+      if (decoded && decoded.exp * 1000 > Date.now()) {
+          // Basic User Set kar do
+          const initialUser = { 
+              ...decoded, 
+              _id: decoded.id || decoded._id || decoded.userId 
+          };
+          setUser(initialUser);
+      } else {
+          localStorage.removeItem("token");
+          setUser(null);
+          setLoading(false);
+          return;
       }
+
+      // STEP 2: Background me Full Profile Data Mangwao (Skills, Bio, etc.)
+      try {
+        const config = { headers: { Authorization: `Bearer ${token}` } };
+        
+        // 🔥 Ye wo API hai jo 404 de rahi thi. Hum isse Try-Catch me rakhenge.
+        // Agar ye chali, to user data update ho jayega.
+        // Agar fail hui, to Step 1 wala user data rahega.
+        const { data } = await axios.get("http://localhost:5000/api/finder/profile", config);
+        
+        if (data) {
+            // Backend se jo data aaya use state me merge kar do
+            setUser((prev) => ({ 
+                ...prev, 
+                ...(data.user || data), // Handle structure difference
+                skills: data.user?.skills || data.skills || [],
+                bio: data.user?.bio || data.bio || ""
+            }));
+            // console.log("Profile Synced via API"); 
+        }
+
+      } catch (error) {
+        // Agar API fail ho, to chupchap raho, App crash mat karo.
+        console.warn("Background Profile Sync Failed (Using Token Data Only). Check Backend Route.");
+      }
+    }
+    
+    setLoading(false);
+  };
+
+  // --- LOGIN ---
+  const loginUser = async (formData) => {
+    try {
+      const { data } = await axios.post("http://localhost:5000/api/auth/login", formData);
+      console.log("Login Response:", data);
+      localStorage.setItem("token", data.token);
+      
+      // Token Data
+      const decoded = parseJwt(data.token);
+      
+      // API Response Data (Merge both)
+      const fullUserData = { 
+          ...decoded, 
+          ...(data.user || {}), 
+          token: data.token,
+          _id: data.user?._id || data.user?.id || decoded.id 
+      };
+
+      setUser(fullUserData);
+      
+      toast.success("Login Successful! 🎉");
+      navigate("/dashboard");
     } catch (error) {
-      console.error(error);
-      // Agar backend se error message aaye toh wo dikhao, nahi toh default
-      const message = error.response?.data?.message || "Registration Failed ❌";
-      toast.error(message);
+      toast.error(error.response?.data?.message || "Login Failed");
     }
   };
 
-  // 3. Logout Function
+  // --- REGISTER ---
+  const registerUser = async (formData) => {
+    try {
+      const { data } = await axios.post("http://localhost:5000/api/auth/register", formData);
+      
+      localStorage.setItem("token", data.token);
+      
+      const decoded = parseJwt(data.token);
+      
+      const fullUserData = { 
+          ...decoded, 
+          ...(data.user || {}), 
+          token: data.token,
+          _id: data.user?._id || data.user?.id || decoded.id
+      };
+
+      setUser(fullUserData);
+      
+      toast.success("Registration Successful! 🚀");
+      navigate("/dashboard");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Registration Failed");
+    }
+  };
+
+  // --- LOGOUT ---
   const logoutUser = () => {
     localStorage.removeItem("token");
     setUser(null);
-    toast.success("Logged out successfully 👋");
+    toast.success("Logged out");
     navigate("/login");
   };
 
-  // 4. Login Function
-  const loginUser = async (userData) => {
-    try {
-      const res = await axios.post(`${API_URL}/login`, userData);
-      
-      if (res.data) {
-        localStorage.setItem("token", res.data.token);
-        setUser(res.data);
-        toast.success("Welcome Back! 👋");
-        navigate("/"); 
-      }
-    } catch (error) {
-      const message = error.response?.data?.message || "Login Failed ❌";
-      toast.error(message);
-    }
-  };
-
-  // value={{ user, registerUser, loginUser, logoutUser, loading }} <-- loginUser yahan add kar dena
-
   return (
-    <AuthContext.Provider value={{ user, registerUser, loginUser,logoutUser, loading }}>
+    <AuthContext.Provider value={{ user, loginUser, registerUser, logoutUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

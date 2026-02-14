@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { createEvent, getEvents } = require('../controllers/eventController');
-const { protect } = require('../middleware/authMiddleware'); // Security Guard import kiya
+const { createEvent, getEvents, joinEvent } = require('../controllers/eventController');
+const { protect } = require('../middleware/authMiddleware');
 
-// Route 1: Sabhi Events dekhne ke liye (Login zaruri nahi)
+// Public Route
 router.get('/', getEvents);
 
-// Route 2: Naya Event banane ke liye (LOGIN ZARURI HAI - protect lagaya)
-router.post('/', protect, createEvent);
+// Protected Routes
+router.post('/', protect, createEvent);   // Create Event
+router.post('/join', protect, joinEvent); // 👈 Join Event (Solo)
 
 module.exports = router;

@@ -1,71 +1,103 @@
 const User = require('../models/User');
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const sendEmail = require('../utils/sendEmail'); // 📨 Email Import zaruri hai
+const sendEmail = require('../utils/sendEmail'); 
+// Note: bcrypt import ki zaroorat yahan nahi hai kyunki hash Model me ho raha hai
 
-// 1. REGISTER USER (With Welcome Email) 📧
+// --- Helper: Generate Token ---
+
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET || 'secret123', { expiresIn: '30d' });
+  
+};
+
+// ==========================================
+// 1. REGISTER USER 🚀
+// ==========================================
 const registerUser = async (req, res) => {
   try {
+    // Frontend se ye sab aa raha hai
     const { name, email, password, gender, department, year, role } = req.body;
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: 'Please fill all fields' });
+    // 1. Basic Validation
+    if (!name || !email || !password || !gender || !department || !year) {
+      return res.status(400).json({ message: 'Please fill all required fields' });
     }
 
+    // 2. Check Existence
     const userExists = await User.findOne({ email });
-    if (userExists) return res.status(400).json({ message: 'User already exists' });
+    if (userExists) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
 
-    // Hash Password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Create User
+    // 3. Create User (Password Hashing Model khud karega 'pre-save' me)
     const user = await User.create({
-      name, email, password: hashedPassword, gender, department, year, role: role || 'student'
+      name,
+      email,
+      password, // 🔥 Direct bhejo, Model hash kar dega
+      gender,
+      department,
+      year,
+      role: role || 'student',
+      // Defaults
+      skills: [],
+      bio: "Hey there! I am using Hackathon Hub.",
+      isLookingForTeam: true
     });
 
     if (user) {
-      // 🎉 EMAIL BHEJO: Welcome Message
+      // 4. Welcome Email Bhejo (Non-blocking)
       try {
         await sendEmail({
           email: user.email,
-          subject: "Welcome to Campus Connect! 🚀",
-          message: `<p>Hi ${user.name},</p><p>Thank you for registering on our platform.</p>`
+          subject: "Welcome to Hackathon Hub! 🚀",
+          message: `<p>Hi ${user.name}, Welcome! Your account is ready.</p>`
         });
       } catch (err) {
-        console.log("Email error:", err.message); // Email fail hone par bhi user ban jaye
+        console.log("Email failed but user created:", err.message);
       }
 
+      // 5. Response Bhejo
       res.status(201).json({
         _id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
         token: generateToken(user._id),
-        message: "Registration Successful! Check your Email 📧"
+        user: user
       });
     } else {
       res.status(400).json({ message: 'Invalid user data' });
     }
+
   } catch (error) {
+    console.error("Register Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// 2. LOGIN USER (Same as before)
+// ==========================================
+// 2. LOGIN USER 🔑
+// ==========================================
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: "Please provide email and password" });
+    }
+
+    // 1. Check User (Password select karna padega kyunki model me select:false hai)
     const user = await User.findOne({ email }).select('+password');
 
-    if (user && (await bcrypt.compare(password, user.password))) {
+    // 2. Check Password using Model Method
+    if (user && (await user.matchPassword(password))) {
       res.json({
         _id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
         token: generateToken(user._id),
-        message: "Login Successful! 🚀"
+        user: user
       });
     } else {
       res.status(401).json({ message: 'Invalid email or password' });
@@ -75,86 +107,69 @@ const loginUser = async (req, res) => {
   }
 };
 
-// 3. FORGOT PASSWORD (OTP Generate & Email) 🔥
+// ==========================================
+// 3. FORGOT PASSWORD (OTP) 🔥
+// ==========================================
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
     const user = await User.findOne({ email });
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    // A. 6 Digit OTP Banao
+    // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // B. Database me save karo (10 min expiry)
+    // Save to DB
     user.otp = otp;
-    user.otpExpire = Date.now() + 10 * 60 * 1000; 
-    await user.save();
+    user.otpExpire = Date.now() + 10 * 60 * 1000; // 10 Minutes
+    await user.save(); // Model ka pre-save hook password hash nahi karega agar wo change nahi hua
 
-    // C. Email Bhejo
-    const message = `
-      <h1>Password Reset Request</h1>
-      <p>Your OTP for password reset is: <b style="font-size: 24px;">${otp}</b></p>
-      <p>This OTP is valid for 10 minutes.</p>
-    `;
-
+    // Send Email
     try {
       await sendEmail({
         email: user.email,
-        subject: "Password Reset OTP 🔐",
-        message
+        subject: "Password Reset OTP",
+        message: `Your OTP is: ${otp}`
       });
       res.status(200).json({ success: true, message: "OTP sent to email!" });
     } catch (error) {
-      user.otp = undefined; // Fail hua to OTP hata do
+      user.otp = undefined;
       user.otpExpire = undefined;
       await user.save();
-      res.status(500).json({ message: "Email could not be sent" });
+      res.status(500).json({ message: "Email send failed" });
     }
-
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// 4. RESET PASSWORD (Verify OTP & Change Password) 🔐
+// ==========================================
+// 4. RESET PASSWORD 🔐
+// ==========================================
 const resetPassword = async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
 
-    // Check OTP and Expiry
     const user = await User.findOne({ 
       email, 
       otp, 
-      otpExpire: { $gt: Date.now() } // Time check
+      otpExpire: { $gt: Date.now() } 
     });
 
-    if (!user) {
-      return res.status(400).json({ message: "Invalid OTP or Expired" });
-    }
+    if (!user) return res.status(400).json({ message: "Invalid OTP or Expired" });
 
-    // Password Update Karo
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(newPassword, salt);
-    
-    // OTP clear kar do
+    // Update Password (ye plain text jayega, Model ka pre-save hook isse hash karega)
+    user.password = newPassword;
     user.otp = undefined;
     user.otpExpire = undefined;
+    
     await user.save();
 
-    res.status(200).json({ success: true, message: "Password Reset Successful! Login Now." });
-
+    res.status(200).json({ success: true, message: "Password Changed!" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// Helper
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'secret123', { expiresIn: '30d' });
-};
-
-// Export all 4 functions
 module.exports = { registerUser, loginUser, forgotPassword, resetPassword };

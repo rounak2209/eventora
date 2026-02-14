@@ -7,14 +7,22 @@ const {
 } = require('../controllers/analyticsController');
 const { protect } = require('../middleware/authMiddleware');
 
-// 1. Dashboard Graphs
-router.get('/:eventId', protect, getEventAnalytics);
+// ==================================================
+// ANALYTICS ROUTES (Organizer Dashboard) 📊
+// ==================================================
 
-// 2. Email PDF Report (Sponsor wala)
-router.post('/report/email', protect, emailAnalyticsReport);
+// 1. Get Stats for Charts (JSON Data)
+// Usage: GET /api/analytics/stats?eventId=12345 (Specific) 
+//    OR: GET /api/analytics/stats (All Events)
+router.get('/stats', protect, getEventAnalytics);
 
-// 3. Download PDF Direct (Postman/Browser ke liye)
-// Note: Iska method GET hai aur URL mein ID jayegi
-router.get('/report/download/:eventId', protect, downloadAnalyticsReport);
+// 2. Email Report (PDF)
+// Usage: POST /api/analytics/send-report
+// Body: { "eventId": "12345" }
+router.post('/send-report', protect, emailAnalyticsReport);
+
+// 3. Download Report (PDF Stream)
+// Usage: GET /api/analytics/download-report?eventId=12345
+router.get('/download-report', protect, downloadAnalyticsReport);
 
 module.exports = router;

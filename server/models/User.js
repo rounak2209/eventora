@@ -25,26 +25,28 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['student', 'admin', 'organizer'], // Organizer bhi add kar diya future ke liye
+    enum: ['student', 'admin', 'organizer' ,'gatekeeper'], // Organizer bhi add kar diya future ke liye
     default: 'student'
   },
   
   // --- ANALYTICS FIELDS ---
+  department: { 
+    type: String,
+    required: function() { return this.role === 'student'; } 
+  },
+  
+  year: { 
+    type: String, 
+    // enum: ['1st', '2nd', '3rd', '4th'], // Tumhara jo bhi enum hai rehne do
+    required: function() { return this.role === 'student'; } // Gatekeeper ke liye check nahi karega
+  },
+
   gender: {
     type: String,
-    enum: ['Male', 'Female', 'Other'],
-    required: [true, 'Please select gender']
+    // enum: ['Male', 'Female', 'Other'], // Tumhara enum
+    required: function() { return this.role === 'student'; } // Gatekeeper ke liye check nahi karega
   },
-  department: {
-    type: String,
-    required: [true, 'Please provide department'], // e.g., "CSE", "Civil"
-    trim: true
-  },
-  year: {
-    type: String,
-    enum: ['1st', '2nd', '3rd', '4th'],
-    required: [true, 'Please select year']
-  },
+  rollNumber: { type: String },
   skills: [{
   type: String,
   trim: true
@@ -66,6 +68,12 @@ isLookingForTeam: { // User on/off kar sakta hai
   otpExpire: {
     type: Date
   },
+
+  assignedEvents: [{ 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Event' 
+  }],
+
 
   createdAt: {
     type: Date,

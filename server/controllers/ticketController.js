@@ -3,79 +3,73 @@ const Event = require('../models/Event');
 const Team = require('../models/Team'); 
 const QRCode = require('qrcode');
 const sendEmail = require('../utils/sendEmail');
+const mongoose = require('mongoose');
 
 // ==========================================
-// 1. BOOK TICKET (Email + QR Generation)
+// 1. BOOK TICKET (Standardized QR Generation)
 // ==========================================
-// @desc    Bulk Book Tickets for Team (or Solo)
-// @route   POST /api/ticket/book
 const bookTicket = async (req, res) => {
   try {
     const { eventId } = req.body;
     const userId = req.user._id;
 
-    // 1. Event ki details laao
     const event = await Event.findById(eventId);
-    if (!event) {
-      return res.status(404).json({ message: "Event not found" });
-    }
+    if (!event) return res.status(404).json({ message: "Event not found" });
 
     let membersToRegister = [];
-    let team = null;
+    let teamId = null;
 
-    // --- CASE A: TEAM EVENT ---
     if (event.isTeamEvent) {
-      // Check karo kya ye banda Leader hai?
-      team = await Team.findOne({ event: eventId, leader: userId })
-        .populate('members'); 
-
-      if (!team) {
-        return res.status(400).json({ message: "Aap Team Leader nahi hain ya Team nahi banayi hai!" });
-      }
-
+      const team = await Team.findOne({ event: eventId, leader: userId }).populate('members'); 
+      if (!team) return res.status(400).json({ message: "Team not found!" });
       membersToRegister = team.members;
-    
-    // --- CASE B: SOLO EVENT ---
+      teamId = team._id;
     } else {
       membersToRegister = [req.user]; 
     }
 
-    // --- MAIN LOOP: Sabke liye Ticket Banao ---
     const results = [];
 
     for (const member of membersToRegister) {
       try {
-        // A. Check agar member pehle se registered hai
         const existingReg = await Registration.findOne({ user: member._id, event: eventId });
-        
         if (existingReg) {
             results.push({ email: member.email, status: "Already Registered" });
             continue; 
         }
 
-        // B. Unique QR Data (Member ID + Event ID + Time)
-        const qrData = `${member._id}-${eventId}-${Date.now()}`;
-        const qrImage = await QRCode.toDataURL(qrData);
-
-        // C. Ticket Database mein Save karo
+        // 1. Registration Create
         const ticket = await Registration.create({
           user: member._id,
           event: eventId,
-          team: event.isTeamEvent ? team._id : null,
-          qrCodeData: qrData,
+          team: teamId,
           paymentStatus: 'Paid',
           hasAttended: false
         });
 
-        // D. Email Bhejo
+        // 2. Generate QR JSON (Jo scanner padh raha hai)
+        const qrPayload = {
+            userId: member._id.toString(),
+            eventId: eventId.toString(),
+            teamId: teamId ? teamId.toString() : null,
+            type: "GATE_PASS"
+        };
+        const qrData = JSON.stringify(qrPayload);
+        
+        ticket.qrCodeData = qrData;
+        await ticket.save();
+
+        // 3. Email Send (QR Image)
+        const qrImage = await QRCode.toDataURL(qrData);
+        const base64Data = qrImage.split(',')[1];
+
         const message = `
           <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd;">
             <h2 style="color: #4F46E5;">Hello ${member.name}, Ticket Confirmed! 🎉</h2>
             <p>Your registration for <b>${event.title}</b> is successful.</p>
-            <p>Here is your unique Entry Pass. Show this QR Code at the gate.</p>
             <br>
-            <img src="cid:unique-qr-code" alt="QR Code" width="200" />
-            <p><b>Ticket ID:</b> ${ticket._id}</p>
+            <img src="cid:unique-qr-code" alt="QR Code" width="200" style="display:block; margin:auto;" />
+            <p style="text-align:center; color: #555;"><b>Ticket ID:</b> ${ticket._id}</p>
           </div>
         `;
 
@@ -83,28 +77,17 @@ const bookTicket = async (req, res) => {
           email: member.email,
           subject: `Ticket for ${event.title} 🎟️`,
           message,
-          attachments: [
-            {
-              filename: 'ticket-qr.png',
-              content: qrImage.split("base64,")[1],
-              encoding: 'base64',
-              cid: 'unique-qr-code'
-            }
-          ]
+          attachments: [{ filename: 'ticket-qr.png', content: base64Data, encoding: 'base64', cid: 'unique-qr-code' }]
         });
 
         results.push({ email: member.email, status: "Success" });
 
       } catch (err) {
-        console.log(`Error for ${member.email}:`, err.message);
-        results.push({ email: member.email, status: "Failed", error: err.message });
+        console.log(`Error:`, err.message);
+        results.push({ email: member.email, status: "Failed" });
       }
     }
-
-    res.status(201).json({
-      message: "Bulk Registration Processed",
-      results
-    });
+    res.status(201).json({ success: true, message: "Processed", results });
 
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -112,52 +95,91 @@ const bookTicket = async (req, res) => {
 };
 
 // ==========================================
-// 2. VERIFY TICKET (Scanner Logic) - NEW 🚀
+// 2. VERIFY TICKET (Fixed for your JSON Format) ✅
 // ==========================================
-// @desc    Verify Ticket at Gate
-// @route   POST /api/ticket/verify
 const verifyTicket = async (req, res) => {
   try {
-    const { qrData } = req.body; // Scanner se ye data aayega
+    const { qrData, eventId } = req.body; // eventId = Guard ne jo select kiya
 
-    // 1. Database mein dhundo
-    const ticket = await Registration.findOne({ qrCodeData: qrData })
-      .populate('user', 'name email department'); // User ki details lao
+    const cleanQR = qrData ? qrData.trim() : "";
+    const cleanEventId = eventId ? eventId.trim() : "";
 
+    console.log("🔍 Scanning:", cleanQR);
+
+    if (!cleanQR || !cleanEventId) {
+        return res.status(400).json({ message: "Missing QR Data or Event ID" });
+    }
+
+    let ticket = null;
+
+    // 🔥 STRATEGY 1: PARSE JSON (Ye naya logic hai)
+    try {
+        const parsedData = JSON.parse(cleanQR);
+        console.log("✅ JSON Detected:", parsedData);
+
+        // Tumhare QR me 'userId' hai.
+        // Logic: Aisa Ticket dhundo jisme User == userId AND Event == Guard's Selected Event
+        if (parsedData.userId) {
+            ticket = await Registration.findOne({ 
+                user: parsedData.userId, 
+                event: cleanEventId 
+            }).populate('user').populate('event');
+        }
+        
+    } catch (e) {
+        console.log("ℹ️ Not a JSON, trying ID match...");
+    }
+
+    // 🔥 STRATEGY 2: DIRECT ID MATCH (Old QRs agar koi ho)
+    if (!ticket && mongoose.Types.ObjectId.isValid(cleanQR)) {
+        ticket = await Registration.findById(cleanQR).populate('user').populate('event');
+    }
+
+    // 🔥 STRATEGY 3: EXACT STRING MATCH
     if (!ticket) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "❌ Invalid Ticket! (Fake hai ya Database mein nahi hai)" 
-      });
+        ticket = await Registration.findOne({ qrCodeData: cleanQR }).populate('user').populate('event');
     }
 
-    // 2. Check karo: Kya ye ticket pehle hi use ho chuka hai?
+    // --- CHECKS ---
+    if (!ticket) {
+        return res.status(404).json({ message: "❌ Invalid Ticket! Record Not Found." });
+    }
+
+    // Strict Event Check
+    if (ticket.event._id.toString() !== cleanEventId) {
+        return res.status(403).json({ 
+            message: `⛔ Wrong Event! Ticket is for "${ticket.event.title}"` 
+        });
+    }
+
     if (ticket.hasAttended) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "⚠️ Ticket Already Used! (Ye banda pehle hi entry le chuka hai)" 
-      });
+        return res.status(400).json({ 
+            message: `⚠️ ALREADY SCANNED!` 
+        });
     }
 
-    // 3. Sab sahi hai -> Entry Confirm karo aur Attendance mark karo
+    // --- SUCCESS ---
     ticket.hasAttended = true;
     ticket.checkInTime = Date.now();
     await ticket.save();
 
-    res.status(200).json({
-      success: true,
-      message: "✅ Entry Granted!",
-      student: {
-        name: ticket.user.name,
-        department: ticket.user.department,
-        email: ticket.user.email
-      }
+    console.log(`✅ Entry Granted: ${ticket.user.name}`);
+
+    res.json({
+        success: true,
+        message: "Entry Granted ✅",
+        student: {
+            name: ticket.user.name,
+            department: ticket.user.department || "N/A",
+            year: ticket.user.year || "N/A",
+            email: ticket.user.email
+        }
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("🔥 Verify Error:", error);
+    res.status(500).json({ message: "Server Error" });
   }
 };
 
-// Dono functions ko export karo
 module.exports = { bookTicket, verifyTicket };

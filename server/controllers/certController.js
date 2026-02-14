@@ -1,10 +1,12 @@
 const Registration = require('../models/Registration');
-const { generateCertificatePDF } = require('../utils/generateCert');
+const Event = require('../models/Event');
+const User = require('../models/User'); 
+const { generateCertificatePDF } = require('../utils/generateCert'); // Ensure path is correct
 const sendEmail = require('../utils/sendEmail');
+
 
 // 1. ISSUE CERTIFICATE & SEND EMAIL
 // Route: POST /api/certificate/issue
-const User = require('../models/User'); // User model import karna mat bhoolna
 
 // 1. ISSUE CERTIFICATE & EMAIL
 const issueCertificate = async (req, res) => {
@@ -99,6 +101,88 @@ const issueCertificate = async (req, res) => {
 };
 
 
+const issueAllCertificates = async (req, res) => {
+  try {
+    const { eventId } = req.body;
+
+    // 1. Event Check
+    const event = await Event.findById(eventId);
+    if (!event) return res.status(404).json({ message: "Event not found" });
+
+    // 2. Sirf unko dhundo jo PRESENT the aur jinhe certificate ABHI TAK NAHI mila
+    const attendees = await Registration.find({ 
+      event: eventId, 
+      hasAttended: true,
+      // certificateId: { $exists: false } // Agar chaho to duplicate rokne ke liye uncomment kar dena
+    }).populate('user').populate('team');
+
+    if (attendees.length === 0) {
+      return res.status(400).json({ message: "No attended users found pending for certificates." });
+    }
+
+    let sentCount = 0;
+
+    // 3. Loop chalao aur sabko bhejo
+    // Note: Production mein ise Queue (BullMQ) se karna chahiye, par project ke liye loop chalega.
+    for (const reg of attendees) {
+        if (!reg.user) continue;
+
+        // ID Generate
+        if (!reg.certificateId) {
+            reg.certificateId = `CERT-${eventId.slice(-4)}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            reg.issuedAt = Date.now();
+            await reg.save();
+        }
+
+        // PDF Data Prep
+        const certData = {
+            studentName: reg.user.name,
+            eventName: event.title,
+            date: new Date(event.date).toLocaleDateString(),
+            teamName: reg.team ? reg.team.name : null,
+            certificateId: reg.certificateId
+        };
+
+        // PDF Generation & Email (Promise wrapper taaki wait kar sakein)
+        await new Promise((resolve, reject) => {
+            let buffers = [];
+            generateCertificatePDF(
+                certData, 
+                (chunk) => buffers.push(chunk), // Data Callback
+                async () => { // End Callback
+                    try {
+                        const pdfBuffer = Buffer.concat(buffers);
+                        await sendEmail({
+                            email: reg.user.email,
+                            subject: `🎓 Certificate: ${event.title}`,
+                            message: `<p>Congratulations <b>${reg.user.name}</b>! <br> You have successfully attended <b>${event.title}</b>. Your certificate is attached.</p>`,
+                            attachments: [{ filename: `${reg.user.name}_Certificate.pdf`, content: pdfBuffer }]
+                        });
+                        resolve();
+                    } catch (err) {
+                        console.error(`Failed for ${reg.user.email}`, err);
+                        resolve(); // Fail hone par bhi continue karo
+                    }
+                }
+            );
+        });
+
+        sentCount++;
+    }
+
+    res.json({ message: `Success! Certificates sent to ${sentCount} attendees. 🚀` });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Bulk issue failed: " + error.message });
+  }
+};
+
+
+
+
+
+
 // 2. VERIFY CERTIFICATE (Public URL - Fake Rokne ke liye)
 // Route: GET /api/certificate/verify/:certId
 const verifyCertificate = async (req, res) => {
@@ -128,4 +212,4 @@ const verifyCertificate = async (req, res) => {
   }
 };
 
-module.exports = { issueCertificate, verifyCertificate };
+module.exports = { issueCertificate, verifyCertificate ,issueAllCertificates };

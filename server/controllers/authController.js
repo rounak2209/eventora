@@ -1,9 +1,8 @@
 const User = require('../models/User');
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const sendEmail = require('../utils/sendEmail');
 const QRCode = require('qrcode'); // 📦 QR Code Import kiya
-
+const bcrypt = require('bcryptjs'); // 🔥 Added: Ye zaroori hai addGatekeeper ke liye
 
 // 🔥 NEW: Organizer Gatekeeper Create Karega
 const addGatekeeper = async (req, res) => {
@@ -87,98 +86,122 @@ const getGatekeepers = async (req, res) => {
     }
 };
 
-
-
 // 1. REGISTER USER (With QR Code Ticket) 📧
 const registerUser = async (req, res) => {
   try {
+    // Frontend se ye sab aa raha hai
     const { name, email, password, gender, department, year, role } = req.body;
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: 'Please fill all fields' });
+    // 1. Basic Validation
+    if (!name || !email || !password || !gender || !department || !year) {
+      return res.status(400).json({ message: 'Please fill all required fields' });
     }
 
+    // 2. Check Existence
     const userExists = await User.findOne({ email });
-    if (userExists) return res.status(400).json({ message: 'User already exists' });
-
-    // Hash Password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    if (userExists) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
 
     // Create User (Default checkIn status false rahega)
     const user = await User.create({
       name, 
       email, 
-      password: hashedPassword, 
+      password, 
       gender, 
       department, 
       year, 
       role: role || 'student',
-      checkIn: false // 🆕 New field for scanner logic
+      checkIn: false, // 🆕 New field for scanner logic
+      skills: [],
+      bio: "Hey there! I am using Hackathon Hub.",
+      isLookingForTeam: true
     });
 
     if (user) {
-      // 🔳 QR Code Generate karo (User ID se)
-      // Ye user._id ko encrypt karke QR image URL (base64) banayega
-      const qrCodeDataUrl = await QRCode.toDataURL(user._id.toString());
-      
-      // Base64 string se "data:image/png;base64," hatao taaki email attachment ban sake
-      const base64Data = qrCodeDataUrl.split(',')[1];
+      // Logic: Frontend se check karo ki ye Event Registration hai ya Normal Signup
+      const isEventRegistration = req.body.isEventRegistration && true; 
 
-      // 🎉 EMAIL BHEJO: With QR Attachment
-      try {
-        await sendEmail({
-          email: user.email,
-          subject: "Your Event Ticket & QR Code 🎟️",
-          message: `
-            <h1>Welcome to Campus Connect, ${user.name}! 🚀</h1>
-            <p>Registration Successful.</p>
-            <p>Please find your <b>Entry Ticket (QR Code)</b> attached below.</p>
-            <p>Show this QR code at the event gate for scanning.</p>
-          `,
-          attachments: [
-            {
-              filename: 'ticket-qr.png',
-              content: base64Data,
-              encoding: 'base64'
-            }
-          ]
-        });
-      } catch (err) {
-        console.log("Email error:", err.message);
+      if (isEventRegistration) {
+        // 🎫 CASE 1: Event Ticket Email (Campus Connect)
+        
+        // QR Code Generation
+        const qrCodeDataUrl = await QRCode.toDataURL(user._id.toString());
+        const base64Data = qrCodeDataUrl.split(',')[1];
+
+        try {
+          await sendEmail({
+            email: user.email,
+            subject: "Your Event Ticket & QR Code 🎟️",
+            message: `
+              <h1>Welcome to Campus Connect, ${user.name}! 🚀</h1>
+              <p>Registration Successful.</p>
+              <p>Please find your <b>Entry Ticket (QR Code)</b> attached below.</p>
+              <p>Show this QR code at the event gate for scanning.</p>
+            `,
+            attachments: [
+              {
+                filename: 'ticket-qr.png',
+                content: base64Data,
+                encoding: 'base64'
+              }
+            ]
+          });
+        } catch (err) {
+          console.log("Ticket Email Error:", err.message);
+        }
+
+      } else {
+        // 👋 CASE 2: General Welcome Email (Hackathon Hub / Normal Signup)
+        try {
+          await sendEmail({
+            email: user.email,
+            subject: "Welcome to Hackathon Hub! 🚀",
+            message: `<p>Hi ${user.name}, Welcome! Your account is ready. Complete your profile to find a team.</p>`
+          });
+        } catch (err) {
+          console.log("Welcome Email Error:", err.message);
+        }
       }
+    }
 
-      res.status(201).json({
-        _id: user.id,
+    // ✅ FIX: Added Response & Closed function properly
+    res.status(201).json({
+        _id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
         token: generateToken(user._id),
-        message: "Registration Successful! QR Ticket sent to Email 📧"
-      });
-    } else {
-      res.status(400).json({ message: 'Invalid user data' });
-    }
+    });
+
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// 2. LOGIN USER
+// ==========================================
+// 2. LOGIN USER 🔑
+// ==========================================
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: "Please provide email and password" });
+    }
+
+    // 1. Check User (Password select karna padega kyunki model me select:false hai)
     const user = await User.findOne({ email }).select('+password');
 
-    if (user && (await bcrypt.compare(password, user.password))) {
+    // 2. Check Password using Model Method
+    if (user && (await user.matchPassword(password))) {
       res.json({
         _id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
         token: generateToken(user._id),
-        message: "Login Successful! 🚀"
+        user: user
       });
     } else {
       res.status(401).json({ message: 'Invalid email or password' });
@@ -188,15 +211,15 @@ const loginUser = async (req, res) => {
   }
 };
 
-// 3. FORGOT PASSWORD
+// ==========================================
+// 3. FORGOT PASSWORD (OTP) 🔥
+// ==========================================
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
     const user = await User.findOne({ email });
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ message: "User not found" });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -210,18 +233,19 @@ const forgotPassword = async (req, res) => {
       <p>Valid for 10 minutes.</p>
     `;
 
+    // Send Email
     try {
       await sendEmail({
         email: user.email,
-        subject: "Password Reset OTP 🔐",
-        message
+        subject: "Password Reset OTP",
+        message: `Your OTP is: ${otp}`
       });
       res.status(200).json({ success: true, message: "OTP sent to email!" });
     } catch (error) {
       user.otp = undefined;
       user.otpExpire = undefined;
       await user.save();
-      res.status(500).json({ message: "Email could not be sent" });
+      res.status(500).json({ message: "Email send failed" });
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -238,15 +262,13 @@ const resetPassword = async (req, res) => {
       otpExpire: { $gt: Date.now() } 
     });
 
-    if (!user) {
-      return res.status(400).json({ message: "Invalid OTP or Expired" });
-    }
+    if (!user) return res.status(400).json({ message: "Invalid OTP or Expired" });
 
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(newPassword, salt);
-    
+    // Update Password (ye plain text jayega, Model ka pre-save hook isse hash karega)
+    user.password = newPassword;
     user.otp = undefined;
     user.otpExpire = undefined;
+    
     await user.save();
 
     res.status(200).json({ success: true, message: "Password Reset Successful! Login Now." });

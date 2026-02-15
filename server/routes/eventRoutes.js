@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { createEvent, getEvents, getGatekeeperEvents } = require('../controllers/eventController');
+const { createEvent, getEvents, getGatekeeperEvents,joinEvent } = require('../controllers/eventController');
 const { protect } = require('../middleware/authMiddleware'); 
 
 // Public: Sabhi Events dekhne ke liye
@@ -8,7 +8,7 @@ router.get('/', getEvents);
 
 // Organizer Only: Naya Event banane ke liye
 router.post('/', protect, createEvent);
-
+router.post('/join', protect, joinEvent); // 👈 Join Event (Solo)
 // 🔥 Gatekeeper Route: Events + Stats dekhne ke liye
 router.get('/gatekeeper-view', protect, getGatekeeperEvents);
 

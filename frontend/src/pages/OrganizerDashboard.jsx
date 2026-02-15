@@ -385,7 +385,7 @@ const OrganizerDashboard = () => {
             </div>
         </div>
       )}
-
+      
     </div>
   );
 };

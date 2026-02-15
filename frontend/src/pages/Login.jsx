@@ -30,7 +30,7 @@ const Login = () => {
       } else if (res.data.role === 'gatekeeper') {
         navigate('/gatekeeper-dashboard'); // Gatekeeper seedha scanner par jayega
       } else {
-        navigate('/dashboard'); // Students home page par
+        navigate('/student-dashboard'); // Students home page par
       }
       
       // Context ko update trigger karne ke liye page reload ya state update kar sakte hain

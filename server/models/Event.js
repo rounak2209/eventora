@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-// Poll Schema (Same as before)
 const optionSchema = new mongoose.Schema({
   text: { type: String, required: true },
   votes: { type: Number, default: 0 }
@@ -14,29 +13,21 @@ const pollSchema = new mongoose.Schema({
 const eventSchema = new mongoose.Schema({
   // --- 1. BASIC INFO ---
   title: {
-    type: String,
-    required: [true, 'Please provide event title'],
-    trim: true
+    type: String, required: [true, 'Please provide event title'], trim: true
   },
   description: {
-    type: String,
-    required: [true, 'Please provide description']
+    type: String, required: [true, 'Please provide description']
   },
-  // bannerUrl HATA DIYA ❌
   
   // --- 2. TIME & VENUE ---
   date: {
-    type: Date,
-    required: [true, 'Please provide event date']
+    type: Date, required: [true, 'Please provide event date']
   },
   venue: {
-    type: String,
-    required: [true, 'Please provide venue'],
-    trim: true
+    type: String, required: [true, 'Please provide venue'], trim: true
   },
-  registrationDeadline: { // ⏳ DEADLINE (Zaruri hai taaki entry band kar sakein)
-    type: Date,
-    required: true
+  registrationDeadline: { 
+    type: Date, required: true
   },
 
   // --- 3. CATEGORY & PRICE ---
@@ -45,49 +36,42 @@ const eventSchema = new mongoose.Schema({
     enum: ['Tech', 'Cultural', 'Sports', 'Workshop', 'Seminar'],
     required: true
   },
-  price: { // 💰 MONEY (0 matlab Free)
-    type: Number,
-    default: 0
+  price: { 
+    type: Number, default: 0
   },
 
-  // --- 4. SEATS & LIMITS ---
-  maxSeats: { // 🪑 CAPACITY (Example: 100 seats)
-    type: Number,
-    required: true
+  // --- 4. SEATS & PARTICIPANTS ---
+  maxSeats: { 
+    type: Number, required: true
   },
-  registeredCount: { // Kitne log ab tak aaye
-    type: Number,
-    default: 0
-  },
+  
+  // 🔥 NEW: Solo Participants ki list (Jo team me nahi hain)
+  participants: [{ 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User' 
+  }],
 
-  // --- 5. TEAM LOGIC (Developer 2 ke liye Important) ---
+  // --- 5. TEAM LOGIC ---
   isTeamEvent: {
-    type: Boolean,
-    default: false
+    type: Boolean, default: false // True = Hackathon, False = Seminar
   },
-  teamSize: { // Min-Max members (Agar team event hai)
+  teamSize: { 
     min: { type: Number, default: 1 },
-    max: { type: Number, default: 1 }
+    max: { type: Number, default: 4 }
   },
 
   // --- 6. LIVE FEATURES ---
   isLive: {
-    type: Boolean,
-    default: false
+    type: Boolean, default: false
   },
   polls: [pollSchema],
   
   // --- 7. ORGANIZER ---
   organizer: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+    type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true
   },
   
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
+  createdAt: { type: Date, default: Date.now }
 });
 
 module.exports = mongoose.model('Event', eventSchema);

@@ -10,12 +10,13 @@ const Register = () => {
     name: "",
     email: "",
     password: "",
-    gender: "",      // New Field
-    department: "",  // New Field
-    year: ""         // New Field
+    gender: "",      
+    department: "",  
+    year: "",
+    role: "student"  // ✅ New Field: Default role student rakha hai
   });
 
-  const { name, email, password, gender, department, year } = formData;
+  const { name, email, password, gender, department, year, role } = formData;
 
   const onChange = (e) => {
     setFormData((prevState) => ({
@@ -32,9 +33,13 @@ const Register = () => {
         toast.error("Password must be at least 6 characters");
         return;
     }
-    if(!gender || !department || !year) {
-        toast.error("Please fill all fields");
-        return;
+
+    // ✅ Logic Update: Agar Student hai tabhi ye fields check karo
+    if (role === 'student') {
+        if(!gender || !department || !year) {
+            toast.error("Please fill all fields");
+            return;
+        }
     }
 
     // Backend ko data bhejo
@@ -49,6 +54,21 @@ const Register = () => {
         </h2>
 
         <form onSubmit={onSubmit}>
+          
+          {/* ✅ Role Selection (New) */}
+          <div className="mb-4">
+            <label className="block text-gray-700 font-bold mb-2">I am a</label>
+            <select
+                name="role"
+                value={role}
+                onChange={onChange}
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+                <option value="student">Student</option>
+                <option value="organizer">Organizer</option>
+            </select>
+          </div>
+
           {/* Name */}
           <div className="mb-4">
             <label className="block text-gray-700 font-bold mb-2">Name</label>
@@ -91,61 +111,66 @@ const Register = () => {
             />
           </div>
 
-          {/* Gender & Year (Side by Side) */}
-          <div className="flex gap-4 mb-4">
-            <div className="w-1/2">
-              <label className="block text-gray-700 font-bold mb-2">Gender</label>
-              <select
-                name="gender"
-                value={gender}
-                onChange={onChange}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                required
-              >
-                <option value="">Select</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
+          {/* ✅ Conditional Rendering: Agar Student hai tabhi ye dikhao */}
+          {role === 'student' && (
+            <>
+                {/* Gender & Year (Side by Side) */}
+                <div className="flex gap-4 mb-4">
+                    <div className="w-1/2">
+                    <label className="block text-gray-700 font-bold mb-2">Gender</label>
+                    <select
+                        name="gender"
+                        value={gender}
+                        onChange={onChange}
+                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        required
+                    >
+                        <option value="">Select</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                    </select>
+                    </div>
 
-            <div className="w-1/2">
-              <label className="block text-gray-700 font-bold mb-2">Year</label>
-              <select
-                name="year"
-                value={year}
-                onChange={onChange}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                required
-              >
-                <option value="">Select</option>
-                <option value="1st">1st Year</option>
-                <option value="2nd">2nd Year</option>
-                <option value="3rd">3rd Year</option>
-                <option value="4th">4th Year</option>
-              </select>
-            </div>
-          </div>
+                    <div className="w-1/2">
+                    <label className="block text-gray-700 font-bold mb-2">Year</label>
+                    <select
+                        name="year"
+                        value={year}
+                        onChange={onChange}
+                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                        required
+                    >
+                        <option value="">Select</option>
+                        <option value="1st">1st Year</option>
+                        <option value="2nd">2nd Year</option>
+                        <option value="3rd">3rd Year</option>
+                        <option value="4th">4th Year</option>
+                    </select>
+                    </div>
+                </div>
 
-          {/* Department */}
-          <div className="mb-6">
-            <label className="block text-gray-700 font-bold mb-2">Department</label>
-            <select
-              name="department"
-              value={department}
-              onChange={onChange}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              required
-            >
-              <option value="">Select Department</option>
-              <option value="CSE">CSE</option>
-              <option value="ECE">ECE</option>
-              <option value="ME">Mechanical</option>
-              <option value="CE">Civil</option>
-              <option value="EE">Electrical</option>
-              <option value="IT">IT</option>
-            </select>
-          </div>
+                {/* Department */}
+                <div className="mb-6">
+                    <label className="block text-gray-700 font-bold mb-2">Department</label>
+                    <select
+                    name="department"
+                    value={department}
+                    onChange={onChange}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    required
+                    >
+                    <option value="">Select Department</option>
+                    <option value="CSE">CSE</option>
+                    <option value="ECE">ECE</option>
+                    <option value="ME">Mechanical</option>
+                    <option value="CE">Civil</option>
+                    <option value="EE">Electrical</option>
+                    <option value="IT">IT</option>
+                    </select>
+                </div>
+            </>
+          )}
 
           {/* Submit Button */}
           <button

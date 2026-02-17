@@ -183,6 +183,7 @@ const sendRequest = async (req, res) => {
       event: team.event,
       type: requestType, 
       status: 'PENDING',
+      sender: req.user._id, // 🔥 YE LINE HONI CHAHIYE (Sender save hona chahiye)
       message: message || "Hey, let's team up!"
     });
 
@@ -261,27 +262,40 @@ const getMyRequests = async (req, res) => {
   try {
     const userId = req.user._id;
     
-    // 1. Un teams ko dhundo jiska user leader hai (Join requests dekhne ke liye)
+    // 1. Un teams ko dhundo jiska user leader hai
     const myTeams = await Team.find({ leader: userId }).select('_id');
     const myTeamIds = myTeams.map(t => t._id);
 
-    // 2. Fetch Pending Requests (Invites for me + Join requests for my team)
+    // 2. Fetch Pending Requests
     const requests = await TeamRequest.find({
       $or: [
-        { user: userId, type: 'INVITE', status: 'PENDING' },
+        { user: userId, type: 'INVITE', status: 'PENDING' }, 
         { team: { $in: myTeamIds }, type: 'JOIN_REQUEST', status: 'PENDING' }
       ]
     })
-    .populate('user', 'name skills department year')
-    .populate('team', 'name leader')
+    // 🔥 FIX 1: Sender (Leader/User) ka naam laao
+    .populate('sender', 'name email') // Ye line zaroori hai "From Leader" ke liye
+    // 🔥 FIX 2: User details laao
+    .populate('user', 'name skills department year') 
+    // 🔥 FIX 3: Team ke andar 'Leader' aur 'Event' dono ko Deep Populate karo
+    .populate({
+        path: 'team',
+        select: 'name leader event', 
+        populate: [
+            { path: 'leader', select: 'name email' }, // Leader details within team
+            { path: 'event', select: 'title' }        // Event Name
+        ]
+    })
     .sort({ createdAt: -1 });
 
     res.json(requests);
 
   } catch (error) {
+    console.error("Error in getMyRequests:", error);
     res.status(500).json({ message: error.message });
   }
 };
+
 
 module.exports = { 
     updateProfile, 

@@ -95,10 +95,19 @@ const getGatekeepers = async (req, res) => {
 // ==========================================
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password, gender, department, year, role } = req.body;
+    // 🔥 FIX: let use kiya taki modify kar sakein
+    let { name, email, password, gender, department, year, role } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    // 🔥 FIX LOGIC: Agar Student nahi hai, toh ye fields undefined kar do.
+    // Empty string ("") mat bhejo, warna Mongoose enum validation fail karega.
+    if (role !== 'student') {
+        gender = undefined;
+        department = undefined;
+        year = undefined;
     }
 
     const userExists = await User.findOne({ email });
@@ -116,8 +125,8 @@ const registerUser = async (req, res) => {
       role: role || 'student',
       checkIn: false,
       skills: [],
-      bio: "Student at College",
-      isLookingForTeam: true
+      bio: role === 'student' ? "Student at College" : "Event Organizer",
+      isLookingForTeam: role === 'student' // Sirf students team dhoondhte hain
     });
 
     // Handle Post-Registration Logic (QR or Welcome Email)
@@ -183,7 +192,7 @@ const loginUser = async (req, res) => {
         email: user.email,
         role: user.role,
         token: generateToken(user._id),
-        user: { // Redundant but safer for different frontend versions
+        user: { 
             id: user._id,
             name: user.name,
             role: user.role,
@@ -242,7 +251,7 @@ const resetPassword = async (req, res) => {
 
     if (!user) return res.status(400).json({ message: "Invalid OTP or Expired" });
 
-    user.password = newPassword; // Pre-save hook will hash this
+    user.password = newPassword; 
     user.otp = undefined;
     user.otpExpire = undefined;
     await user.save();

@@ -16,6 +16,7 @@ const requestSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   type: {
     type: String,
     enum: ['JOIN_REQUEST', 'INVITE'], // JOIN_REQUEST = User ne kiya, INVITE = Team ne kiya

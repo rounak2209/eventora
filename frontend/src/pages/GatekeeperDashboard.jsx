@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { getGatekeeperEvents } from '../api'; // 👈 Centralized API Import
 import { LogOut, MapPin, Calendar, QrCode, Users, CheckCircle } from 'lucide-react';
 
 const GatekeeperDashboard = () => {
@@ -8,29 +8,25 @@ const GatekeeperDashboard = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const token = localStorage.getItem('token');
-
   // Events + Stats Fetch Karo
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        // 🔥 Naya Endpoint Call kar rahe hain
-        const res = await axios.get('http://localhost:5000/api/events/gatekeeper-view', {
-            headers: { Authorization: `Bearer ${token}` }
-        });
+        // 🔥 Endpoint Call kar rahe hain (via api.js)
+        const res = await getGatekeeperEvents();
         setEvents(res.data); // Backend already sorted bhej raha hai
         setLoading(false);
       } catch (err) {
-        console.error(err);
+        console.error("Error loading duties:", err);
         setLoading(false);
       }
     };
     fetchEvents();
-  }, [token]);
+  }, []);
 
   // Logout
   const handleLogout = () => {
-    if(window.confirm("Logout form duty?")) {
+    if(window.confirm("Logout from duty?")) {
         localStorage.clear();
         navigate('/login');
     }
@@ -62,7 +58,7 @@ const GatekeeperDashboard = () => {
       {/* Events List */}
       <div className="p-4 max-w-3xl mx-auto grid gap-6 mt-4">
         {events.length === 0 ? (
-            <div className="text-center text-gray-500 mt-10">No upcoming events found.</div>
+            <div className="text-center text-gray-500 mt-10">No upcoming events assigned.</div>
         ) : (
             events.map((event) => {
                 const eventDate = new Date(event.date);
@@ -89,7 +85,7 @@ const GatekeeperDashboard = () => {
                                 </div>
                             </div>
                             
-                            {/* 🔥 PROGRESS BAR (New Feature) */}
+                            {/* 🔥 PROGRESS BAR */}
                             <div className="w-full bg-gray-200 rounded-full h-4 mb-4 overflow-hidden border border-gray-300">
                                 <div 
                                     className={`h-4 rounded-full transition-all duration-1000 ${percentage >= 100 ? 'bg-green-500' : 'bg-indigo-500'}`} 

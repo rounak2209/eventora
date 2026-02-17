@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import { createEvent } from '../api'; // 👈 Centralized API Import
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 
@@ -38,17 +38,18 @@ const CreateEvent = () => {
       }
 
       // Payload format adjust karna (teamSize object backend ko chahiye)
+      // Ye logic functionality ke liye zaroori hai, is ise rakha gaya hai
       const payload = {
         ...formData,
         teamSize: { min: formData.teamSizeMin, max: formData.teamSizeMax }
       };
 
-      await axios.post('http://localhost:5000/api/events', payload, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      // 🔥 OLD: axios.post('http://localhost:5000/api/events', payload, { headers: ... });
+      // ✅ NEW: api.js handle karega base URL aur token automatically
+      await createEvent(payload);
 
       toast.success("Event Created Successfully! 🎉");
-      navigate('/dashboard'); // Wapas dashboard bhejo
+      navigate('/organizer-dashboard'); // Context ke hisab se dashboard navigate karein
     } catch (error) {
       console.error(error);
       toast.error(error.response?.data?.message || "Failed to create event");
@@ -64,7 +65,7 @@ const CreateEvent = () => {
         <div>
           <label className="block text-gray-700 font-bold mb-2">Event Title</label>
           <input type="text" name="title" required
-            className="w-full px-3 py-2 border rounded"
+            className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-indigo-500 outline-none"
             onChange={handleChange} />
         </div>
 
@@ -72,7 +73,7 @@ const CreateEvent = () => {
         <div>
           <label className="block text-gray-700 font-bold mb-2">Description</label>
           <textarea name="description" required rows="3"
-            className="w-full px-3 py-2 border rounded"
+            className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-indigo-500 outline-none"
             onChange={handleChange}></textarea>
         </div>
 
@@ -81,13 +82,13 @@ const CreateEvent = () => {
           <div>
             <label className="block text-gray-700 font-bold mb-2">Date</label>
             <input type="datetime-local" name="date" required
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-indigo-500 outline-none"
               onChange={handleChange} />
           </div>
           <div>
             <label className="block text-gray-700 font-bold mb-2">Venue</label>
             <input type="text" name="venue" required
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-indigo-500 outline-none"
               onChange={handleChange} />
           </div>
         </div>
@@ -97,12 +98,12 @@ const CreateEvent = () => {
           <div>
             <label className="block text-gray-700 font-bold mb-2">Registration Deadline</label>
             <input type="datetime-local" name="registrationDeadline" required
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-indigo-500 outline-none"
               onChange={handleChange} />
           </div>
           <div>
             <label className="block text-gray-700 font-bold mb-2">Category</label>
-            <select name="category" className="w-full px-3 py-2 border rounded" onChange={handleChange}>
+            <select name="category" className="w-full px-3 py-2 border rounded bg-white outline-none focus:ring-2 focus:ring-indigo-500" onChange={handleChange}>
               <option value="Tech">Tech</option>
               <option value="Cultural">Cultural</option>
               <option value="Sports">Sports</option>
@@ -116,13 +117,13 @@ const CreateEvent = () => {
           <div>
             <label className="block text-gray-700 font-bold mb-2">Max Seats</label>
             <input type="number" name="maxSeats" required min="1"
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-indigo-500 outline-none"
               onChange={handleChange} />
           </div>
           <div>
             <label className="block text-gray-700 font-bold mb-2">Price (₹)</label>
             <input type="number" name="price" required min="0"
-              className="w-full px-3 py-2 border rounded"
+              className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-indigo-500 outline-none"
               onChange={handleChange} />
           </div>
         </div>
@@ -131,28 +132,28 @@ const CreateEvent = () => {
         <div className="bg-gray-50 p-4 rounded border">
           <div className="flex items-center mb-4">
             <input type="checkbox" name="isTeamEvent" id="isTeamEvent"
-              className="mr-2 h-5 w-5 text-indigo-600"
+              className="mr-2 h-5 w-5 text-indigo-600 rounded"
               onChange={handleChange} />
-            <label htmlFor="isTeamEvent" className="text-gray-700 font-bold">Is this a Team Event?</label>
+            <label htmlFor="isTeamEvent" className="text-gray-700 font-bold cursor-pointer">Is this a Team Event?</label>
           </div>
 
           {formData.isTeamEvent && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
               <div>
-                <label className="block text-sm">Min Team Size</label>
+                <label className="block text-sm font-medium text-gray-600">Min Team Size</label>
                 <input type="number" name="teamSizeMin" min="1" defaultValue="1"
-                  className="w-full px-2 py-1 border rounded" onChange={handleChange} />
+                  className="w-full px-3 py-1 border rounded focus:ring-2 focus:ring-indigo-500 outline-none" onChange={handleChange} />
               </div>
               <div>
-                <label className="block text-sm">Max Team Size</label>
+                <label className="block text-sm font-medium text-gray-600">Max Team Size</label>
                 <input type="number" name="teamSizeMax" min="1" defaultValue="1"
-                  className="w-full px-2 py-1 border rounded" onChange={handleChange} />
+                  className="w-full px-3 py-1 border rounded focus:ring-2 focus:ring-indigo-500 outline-none" onChange={handleChange} />
               </div>
             </div>
           )}
         </div>
 
-        <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded shadow-lg transition">
+        <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded shadow-lg transition transform active:scale-95">
           🚀 Create Event
         </button>
       </form>

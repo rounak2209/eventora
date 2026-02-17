@@ -1,14 +1,15 @@
 const Team = require('../models/Team');
 const Event = require('../models/Event');
 
+// ============================================================
 // 1. CREATE TEAM
-// Route: POST /api/teams/create
+// ============================================================
 const createTeam = async (req, res) => {
   try {
     const { name, eventId, description, requiredSkills, requiredYear, skillMatchMode } = req.body;
     const userId = req.user._id;
 
-    // A. Check: Kya Event exist karta hai?
+    // A. Check: Event exist karta hai?
     const event = await Event.findById(eventId);
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
@@ -16,10 +17,10 @@ const createTeam = async (req, res) => {
 
     // 🔥 Check: Agar Solo Event hai, to Team banane mat do
     if (event.isTeamEvent === false) {
-      return res.status(400).json({ message: "This is a Solo Event. You cannot create a team for it." });
+      return res.status(400).json({ message: "This is a Solo Event. Teams are not allowed." });
     }
 
-    // B. Check: Banda pehle se kisi team mein toh nahi?
+    // B. Check: Kya banda pehle se is event ki kisi team mein hai?
     const existingTeam = await Team.findOne({ 
       event: eventId, 
       members: userId 
@@ -29,7 +30,7 @@ const createTeam = async (req, res) => {
       return res.status(400).json({ message: "You are already in a team for this event!" });
     }
 
-    // C. Unique Code Banao
+    // C. Unique Code Generation
     const code = "TEAM-" + Math.floor(1000 + Math.random() * 9000);
 
     // D. Team Save karo
@@ -39,14 +40,14 @@ const createTeam = async (req, res) => {
       event: eventId,
       leader: userId,
       members: [userId],
-      description: description || "Join us to win!",
+      description: description || "Ready to innovate!",
       requiredSkills: requiredSkills || [],
       requiredYear: requiredYear || [],
       skillMatchMode: skillMatchMode || 'FLEXIBLE' 
     });
 
     res.status(201).json({ 
-      message: "Team Created Successfully! Share the code.", 
+      message: "Team Created! Share the code with your squad.", 
       teamCode: code, 
       team 
     });
@@ -57,33 +58,37 @@ const createTeam = async (req, res) => {
   }
 };
 
+// ============================================================
 // 2. JOIN TEAM
-// Route: POST /api/teams/join
+// ============================================================
 const joinTeam = async (req, res) => {
   try {
     const { teamCode, eventId } = req.body;
     const userId = req.user._id;
 
-    // A. Team dhundo Code aur Event ID se
-    const team = await Team.findOne({ code: teamCode, event: eventId });
+    // A. Team dhundo (Case insensitive matching safe side ke liye)
+    const team = await Team.findOne({ 
+        code: teamCode.toUpperCase(), 
+        event: eventId 
+    });
     
     if (!team) {
-      return res.status(404).json({ message: "Invalid Team Code or this team does not belong to the selected event." });
+      return res.status(404).json({ message: "Invalid Code or Team doesn't exist for this event." });
     }
 
-    // B. Check Limit
+    // B. Fetch Event details for team size limit
     const event = await Event.findById(eventId);
     if (!event) return res.status(404).json({ message: "Event not found" });
 
     const maxMembers = event.teamSize?.max || 4; 
     
     if (team.members.length >= maxMembers) {
-      return res.status(400).json({ message: `Team is already FULL! (Max ${maxMembers}) ⛔` });
+      return res.status(400).json({ message: `This squad is already full! (Limit: ${maxMembers})` });
     }
 
-    // C. Check Existing Member
+    // C. Check if already a member
     if (team.members.includes(userId)) {
-      return res.status(400).json({ message: "You are already in this team!" });
+      return res.status(400).json({ message: "You are already a member of this team." });
     }
 
     // D. Add Member
@@ -91,7 +96,7 @@ const joinTeam = async (req, res) => {
     await team.save();
 
     res.json({ 
-      message: "Joined Team Successfully! 🚀", 
+      message: "Welcome to the squad! 🚀", 
       team 
     });
 
@@ -101,14 +106,15 @@ const joinTeam = async (req, res) => {
   }
 };
 
-// 3. GET MY TEAMS (🔥 UPDATED: Returns Array)
-// Route: GET /api/teams/my-team
+// ============================================================
+// 3. GET MY TEAMS
+// ============================================================
 const getMyTeam = async (req, res) => {
   try {
-    // .find() use kiya taaki multiple teams aaye
+    // Fetch multiple teams and populate for frontend display
     const teams = await Team.find({ members: req.user._id })
-      .populate('members', 'name email department year') 
-      .populate('event', 'title date isTeamEvent')
+      .populate('members', 'name email department year skills bio') 
+      .populate('event', 'title date isTeamEvent venue')
       .sort({ createdAt: -1 });
 
     res.json(teams); 
@@ -117,8 +123,9 @@ const getMyTeam = async (req, res) => {
   }
 };
 
-// 4. LEAVE TEAM (Member Action)
-// Route: POST /api/teams/leave
+// ============================================================
+// 4. LEAVE TEAM
+// ============================================================
 const leaveTeam = async (req, res) => {
   try {
     const { teamId } = req.body;
@@ -127,61 +134,61 @@ const leaveTeam = async (req, res) => {
     const team = await Team.findById(teamId);
     if (!team) return res.status(404).json({ message: "Team not found" });
 
-    // Remove User
+    // Remove User logic
     team.members = team.members.filter(id => id.toString() !== userId.toString());
 
-    // Agar Team khali ho gayi, to delete
+    // Agar koi bacha hi nahi, delete team
     if (team.members.length === 0) {
       await Team.findByIdAndDelete(teamId);
-      return res.json({ message: "You left. Team deleted as it became empty." });
+      return res.json({ message: "You left. Squad disbanded as it was empty." });
     }
 
-    // Agar Leader leave kar raha hai, to next member ko leader banao
+    // Agar leader leave kare, to kisi aur ko zimmedari do
     if (team.leader.toString() === userId.toString()) {
       team.leader = team.members[0];
     }
 
     await team.save();
-    res.json({ message: "You left the team." });
+    res.json({ message: "Successfully left the squad." });
 
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// 5. REMOVE MEMBER (Leader Action)
-// Route: POST /api/teams/remove-member
+// ============================================================
+// 5. REMOVE MEMBER (Leader Only)
+// ============================================================
 const removeMember = async (req, res) => {
   try {
     const { teamId, memberId } = req.body;
-    const userId = req.user._id; // Requester (Leader)
+    const userId = req.user._id; 
 
     const team = await Team.findById(teamId);
     if (!team) return res.status(404).json({ message: "Team not found" });
 
-    // Check: Only Leader can do this
+    // Auth Check
     if (team.leader.toString() !== userId.toString()) {
-      return res.status(403).json({ message: "Only Team Leader can remove members." });
+      return res.status(403).json({ message: "Action denied. Only the leader can remove members." });
     }
 
-    // Leader khud ko remove nahi karega
     if (userId.toString() === memberId.toString()) {
-      return res.status(400).json({ message: "Leader cannot remove themselves." });
+      return res.status(400).json({ message: "Leader cannot remove themselves. Use Leave instead." });
     }
 
-    // Remove Member
     team.members = team.members.filter(id => id.toString() !== memberId.toString());
     await team.save();
 
-    res.json({ message: "Member removed successfully." });
+    res.json({ message: "Member removed from squad." });
 
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// 6. DELETE TEAM (Leader Action)
-// Route: DELETE /api/teams/delete
+// ============================================================
+// 6. DELETE TEAM (Leader Only)
+// ============================================================
 const deleteTeam = async (req, res) => {
   try {
     const { teamId } = req.body;
@@ -190,13 +197,13 @@ const deleteTeam = async (req, res) => {
     const team = await Team.findById(teamId);
     if (!team) return res.status(404).json({ message: "Team not found" });
 
-    // Check Leader
+    // Auth Check
     if (team.leader.toString() !== userId.toString()) {
-      return res.status(403).json({ message: "Only Team Leader can delete the team." });
+      return res.status(403).json({ message: "Action denied. Only the leader can disband the team." });
     }
 
     await Team.findByIdAndDelete(teamId);
-    res.json({ message: "Team deleted successfully." });
+    res.json({ message: "Team has been disbanded successfully." });
 
   } catch (error) {
     res.status(500).json({ message: error.message });

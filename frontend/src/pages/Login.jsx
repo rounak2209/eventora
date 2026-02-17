@@ -1,11 +1,11 @@
 import { useState, useContext } from "react";
 import AuthContext from "../context/AuthContext";
 import { Link, useNavigate } from "react-router-dom";
-import axios from "axios";
+import { loginUser } from "../api"; // 👈 New Import (api.js se)
 import { toast } from "react-hot-toast";
 
 const Login = () => {
-  const { loginUser: contextLogin } = useContext(AuthContext); // Context function (optional use)
+  const { loginUser: contextLogin } = useContext(AuthContext); 
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -15,12 +15,13 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // Direct API call taaki hum response se 'role' check kar sakein
-      const res = await axios.post("http://localhost:5000/api/auth/login", formData);
+      // 🔥 OLD: axios.post("http://localhost:5000/api/auth/login", formData);
+      // ✅ NEW: Direct function call from api.js
+      const res = await loginUser(formData);
       
       // 1. Token & Data Save karo
       localStorage.setItem("token", res.data.token);
-      localStorage.setItem("role", res.data.role); // Role save karna zaroori hai
+      localStorage.setItem("role", res.data.role); 
       
       toast.success(res.data.message || "Login Successful");
 
@@ -28,13 +29,12 @@ const Login = () => {
       if (res.data.role === 'organizer') {
         navigate('/organizer-dashboard');
       } else if (res.data.role === 'gatekeeper') {
-        navigate('/gatekeeper-dashboard'); // Gatekeeper seedha scanner par jayega
+        navigate('/gatekeeper-dashboard');
       } else {
-        navigate('/student-dashboard'); // Students home page par
+        navigate('/student-dashboard');
       }
       
-      // Context ko update trigger karne ke liye page reload ya state update kar sakte hain
-      // Agar AuthContext automatically localStorage check karta hai to ye chal jayega.
+      // Context/State refresh karne ke liye reload
       window.location.reload(); 
 
     } catch (error) {

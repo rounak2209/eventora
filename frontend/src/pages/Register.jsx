@@ -1,10 +1,11 @@
-import { useState, useContext } from "react";
-import AuthContext from "../context/AuthContext";
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { registerUser } from "../api"; // 👈 New Import (api.js se)
 import { toast } from "react-hot-toast";
 
 const Register = () => {
-  const { registerUser } = useContext(AuthContext);
+  const navigate = useNavigate(); 
+  const [loading, setLoading] = useState(false); // Loading state add kiya for better UX
 
   const [formData, setFormData] = useState({
     name: "",
@@ -13,7 +14,7 @@ const Register = () => {
     gender: "",      
     department: "",  
     year: "",
-    role: "student"  // ✅ New Field: Default role student rakha hai
+    role: "student"  // ✅ Default role student
   });
 
   const { name, email, password, gender, department, year, role } = formData;
@@ -25,7 +26,7 @@ const Register = () => {
     }));
   };
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
     
     // Basic Validation
@@ -42,8 +43,22 @@ const Register = () => {
         }
     }
 
-    // Backend ko data bhejo
-    registerUser(formData);
+    setLoading(true);
+
+    try {
+        // 🔥 OLD: context.registerUser(formData);
+        // ✅ NEW: Direct API call from api.js
+        const res = await registerUser(formData);
+        
+        toast.success(res.data.message || "Registration Successful! Please Login.");
+        navigate('/login'); // Success hone par Login page par bhejo
+
+    } catch (error) {
+        console.error("Registration Error:", error);
+        toast.error(error.response?.data?.message || "Registration Failed");
+    } finally {
+        setLoading(false);
+    }
   };
 
   return (
@@ -55,7 +70,7 @@ const Register = () => {
 
         <form onSubmit={onSubmit}>
           
-          {/* ✅ Role Selection (New) */}
+          {/* ✅ Role Selection */}
           <div className="mb-4">
             <label className="block text-gray-700 font-bold mb-2">I am a</label>
             <select
@@ -175,9 +190,10 @@ const Register = () => {
           {/* Submit Button */}
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-300 shadow-lg"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-300 shadow-lg disabled:bg-blue-400"
           >
-            Register Now
+            {loading ? "Registering..." : "Register Now"}
           </button>
         </form>
 

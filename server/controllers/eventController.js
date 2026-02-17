@@ -1,8 +1,10 @@
 const Event = require('../models/Event');
-const Registration = require('../models/Registration'); // 👈 Ye line zaroor add karna
+const Registration = require('../models/Registration'); 
 const User = require('../models/User');
 
-// 1. CREATE EVENT (Purana code same rahega)
+// ==========================================
+// 1. CREATE EVENT (By Organizer)
+// ==========================================
 const createEvent = async (req, res) => {
   try {
     const { 
@@ -10,12 +12,23 @@ const createEvent = async (req, res) => {
       category, price, maxSeats, isTeamEvent, teamSize, isLive 
     } = req.body;
 
+    // Basic Validation
     if (!title || !description || !date || !venue || !registrationDeadline || !category || !maxSeats) {
       return res.status(400).json({ message: 'Please fill all required fields' });
     }
 
+    // Safety: Registration deadline event ki date se pehle honi chahiye
+    if (new Date(registrationDeadline) > new Date(date)) {
+        return res.status(400).json({ message: 'Deadline cannot be after the event date!' });
+    }
+
     const event = await Event.create({
-      title, description, date, venue, registrationDeadline, category,
+      title, 
+      description, 
+      date, 
+      venue, 
+      registrationDeadline, 
+      category,
       price: price || 0,
       maxSeats,
       isTeamEvent: isTeamEvent || false,
@@ -26,52 +39,56 @@ const createEvent = async (req, res) => {
 
     res.status(201).json({ message: "Event Created Successfully! 🎉", event });
   } catch (error) {
+    console.error("Create Event Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
 
-// 2. GET ALL EVENTS
+// ==========================================
+// 2. GET ALL EVENTS (For Marketplace)
+// ==========================================
 const getEvents = async (req, res) => {
   try {
     const events = await Event.find()
       .populate('organizer', 'name email')
-      .sort({ date: 1 });
+      .sort({ date: 1 })
+      .lean(); // lean() se performance fast ho jati hai (read-only queries ke liye)
+      
     res.json(events);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// 🔥 3. GET GATEKEEPER EVENTS (With LIVE Stats) 🚀
-// Ye function Guard ke dashboard ke liye hai
-// 🔥 GET GATEKEEPER EVENTS (Filtered by Assignment)
+// ==========================================
+// 3. GET GATEKEEPER DUTIES (With Live Stats)
+// ==========================================
 const getGatekeeperEvents = async (req, res) => {
   try {
-    // 1. Logged in user (Gatekeeper) ki details laao with assignedEvents
-    // req.user._id authMiddleware se aa raha hai
+    // 1. Gatekeeper profile check
     const gatekeeper = await User.findById(req.user._id);
 
     if (!gatekeeper) {
         return res.status(404).json({ message: "Gatekeeper profile not found" });
     }
 
-    // 2. Sirf Assigned Events dhundo
-    // $in operator check karega ki Event ID 'assignedEvents' array mein hai ya nahi
+    // 2. Fetch only Assigned Events
     const events = await Event.find({
         _id: { $in: gatekeeper.assignedEvents } 
-    }).sort({ date: 1 });
+    }).sort({ date: 1 }).lean();
 
-    // 3. Stats Calculate karo (Purana logic)
+    // 3. Calculate LIVE Stats for each assigned event
+    // Ye data Guard Dashboard ke progress bar mein dikhega
     const eventsWithStats = await Promise.all(events.map(async (event) => {
         const totalRegistrations = await Registration.countDocuments({ event: event._id });
         const scannedCount = await Registration.countDocuments({ event: event._id, hasAttended: true });
 
         return {
-            ...event._doc,
+            ...event,
             stats: {
                 total: totalRegistrations,
                 present: scannedCount,
-                pending: totalRegistrations - scannedCount
+                pending: Math.max(0, totalRegistrations - scannedCount)
             }
         };
     }));
@@ -83,8 +100,9 @@ const getGatekeeperEvents = async (req, res) => {
   }
 };
 
-
-// 4. JOIN EVENT (Solo Logic) 🔥 UPDATED WITH ID CHECK
+// ==========================================
+// 4. JOIN EVENT (Solo Registration Logic)
+// ==========================================
 const joinEvent = async (req, res) => {
   try {
     const { eventId } = req.body;
@@ -93,24 +111,30 @@ const joinEvent = async (req, res) => {
     const event = await Event.findById(eventId);
     if (!event) return res.status(404).json({ message: "Event not found" });
 
+    // Team Event check
     if (event.isTeamEvent) {
-      return res.status(400).json({ message: "This is a Team Event. Please create or join a team." });
+      return res.status(400).json({ message: "This is a Team Event. Please create/join a team to register." });
     }
 
-    // 🔥 String conversion added for safe ID matching
+    // Housefull check
+    if (event.participants.length >= event.maxSeats) {
+        return res.status(400).json({ message: "Event is Housefull! 🚫" });
+    }
+
+    // Duplicate check
     const isAlreadyJoined = event.participants.some(p => p.toString() === userId.toString());
-
     if (isAlreadyJoined) {
-      return res.status(400).json({ message: "You have already joined this event!" });
+      return res.status(400).json({ message: "You are already registered for this event!" });
     }
 
+    // Success: Participant add karo
     event.participants.push(userId);
     await event.save();
 
-    res.json({ message: "Successfully registered! 🚀" });
+    res.json({ message: "Registration successful! 🚀 Check your dashboard for the ticket." });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-module.exports = { createEvent, getEvents, getGatekeeperEvents,joinEvent };
+module.exports = { createEvent, getEvents, getGatekeeperEvents, joinEvent };

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Scanner } from '@yudiel/react-qr-scanner';
-import axios from 'axios';
+import { verifyTicket } from '../api'; // 👈 New Import (api.js se)
 import { toast } from 'react-hot-toast';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { XCircle, CheckCircle, LogOut, ArrowLeft } from 'lucide-react';
@@ -16,7 +16,7 @@ const ScannerPage = () => {
 
   // Dashboard se Event Name aur ID uthao
   const eventName = location.state?.eventName || "General Entry";
-  const currentEventId = location.state?.eventId; // 🔥 YE HAI WO ID
+  const currentEventId = location.state?.eventId; 
 
   // 1. SECURITY CHECK
   useEffect(() => {
@@ -28,7 +28,6 @@ const ScannerPage = () => {
         navigate('/'); 
     }
 
-    // Agar Event ID nahi hai (Page Refresh kiya ya direct khola), wapas bhejo
     if (!currentEventId) {
         toast.error("⚠️ Error: Event ID Missing. Please select event again.");
         navigate('/gatekeeper-dashboard');
@@ -42,25 +41,19 @@ const ScannerPage = () => {
     const rawValue = detectedCodes?.[0]?.rawValue;
     if (!rawValue) return;
 
-    // Debugging ke liye (Console check kar lena agar fategar)
+    // Debugging
     console.log("Sending Data:", { qrData: rawValue, eventId: currentEventId });
 
     setPauseScan(true); 
     setMessage("Verifying...");
 
     try {
-        const token = localStorage.getItem('token');
-        const config = { headers: { Authorization: `Bearer ${token}` } };
-
-        // 🔥 MAIN FIX: Yahan 'eventId' add kiya hai
-        const res = await axios.post(
-            'http://localhost:5000/api/ticket/verify', 
-            { 
-                qrData: rawValue, 
-                eventId: currentEventId // 👈 YE MISSING THA TUMHARE CODE MEIN
-            }, 
-            config
-        );
+        // 🔥 OLD: axios.post('http://localhost:5000/...', { ... }, config);
+        // ✅ NEW: Direct function call from api.js (Headers auto handled)
+        const res = await verifyTicket({ 
+            qrData: rawValue, 
+            eventId: currentEventId 
+        });
 
         // ✅ Success Case
         setScanResult('success');

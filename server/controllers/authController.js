@@ -1,10 +1,12 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const sendEmail = require('../utils/sendEmail');
-const QRCode = require('qrcode'); // 📦 QR Code Import kiya
-const bcrypt = require('bcryptjs'); // 🔥 Added: Ye zaroori hai addGatekeeper ke liye
+const QRCode = require('qrcode'); 
+const bcrypt = require('bcryptjs');
 
-// 🔥 NEW: Organizer Gatekeeper Create Karega
+// ==========================================
+// 1. ADD GATEKEEPER (By Organizer)
+// ==========================================
 const addGatekeeper = async (req, res) => {
   try {
     const { name, email, password, assignedEventIds } = req.body;
@@ -18,36 +20,36 @@ const addGatekeeper = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    // 🔥 FIX: Manual Password Hashing
-    // Hum middleware ke bharose nahi rahenge, yahin hash kar denge.
+    // Manual Password Hashing for Staff accounts
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 3. Create User
     const user = await User.create({
       name,
       email,
-      password: hashedPassword, // 👈 Database me HASH save karo
+      password: hashedPassword,
       role: 'gatekeeper',
       department: 'Staff', 
       assignedEvents: assignedEventIds || []
     });
 
-    // 4. Send Email (Send ORIGINAL Password, NOT Hash)
+    // Send Credentials via Email
     try {
         const emailMessage = `
-            <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd;">
+            <div style="font-family: sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
                 <h2 style="color: #4F46E5;">Welcome to Event Team! 🛡️</h2>
                 <p>Hello <b>${name}</b>,</p>
-                <p>You have been appointed as a <b>Gatekeeper</b>.</p>
-                <p>Here are your login credentials:</p>
-                <div style="background: #f4f4f4; padding: 10px; border-radius: 5px; margin: 10px 0;">
-                    <p><b>Email:</b> ${email}</p>
-                    <p><b>Password:</b> ${password}</p> 
+                <p>You have been appointed as a <b>Gatekeeper</b> for our upcoming events.</p>
+                <p>Use the following credentials to access the scanner panel:</p>
+                <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #e2e8f0;">
+                    <p style="margin: 0;"><b>Login ID:</b> ${email}</p>
+                    <p style="margin: 5px 0 0 0;"><b>Password:</b> ${password}</p> 
                 </div>
-                <p><i>(Note: This password allows you to access the scanner.)</i></p>
                 <br>
-                <a href="http://localhost:5173/login" style="background: #4F46E5; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Login Now</a>
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" 
+                   style="background: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                   Login to Duty
+                </a>
             </div>
         `;
 
@@ -56,54 +58,54 @@ const addGatekeeper = async (req, res) => {
             subject: "Gatekeeper Access Granted 🔐",
             message: emailMessage
         });
-        console.log(`Credentials sent to ${user.email}`);
     } catch (emailError) {
-        console.error("Email sending failed:", emailError);
+        console.error("Staff Email Error:", emailError.message);
     }
 
-    res.status(201).json({
+    return res.status(201).json({
       _id: user._id,
       name: user.name,
       email: user.email,
       role: user.role,
-      message: "Gatekeeper Added & Securely Hashed! ✅"
+      message: "Gatekeeper Added & Credentials Emailed! ✅"
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
 
-// Gatekeepers List Fetch karna (Display ke liye)
+// ==========================================
+// 2. GET GATEKEEPERS LIST
+// ==========================================
 const getGatekeepers = async (req, res) => {
     try {
-        // Populate assignedEvents taaki frontend pe event ke naam dikha sakein
         const gatekeepers = await User.find({ role: 'gatekeeper' })
-            .populate('assignedEvents', 'title'); 
-        res.json(gatekeepers);
+            .populate('assignedEvents', 'title date venue')
+            .select('-password')
+            .lean(); 
+        return res.json(gatekeepers);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        return res.status(500).json({ message: error.message });
     }
 };
 
-// 1. REGISTER USER (With QR Code Ticket) 📧
+// ==========================================
+// 3. REGISTER USER (Student/Organizer)
+// ==========================================
 const registerUser = async (req, res) => {
   try {
-    // Frontend se ye sab aa raha hai
     const { name, email, password, gender, department, year, role } = req.body;
 
-    // 1. Basic Validation
-    if (!name || !email || !password || !gender || !department || !year) {
-      return res.status(400).json({ message: 'Please fill all required fields' });
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // 2. Check Existence
     const userExists = await User.findOne({ email });
     if (userExists) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ message: 'Email already registered' });
     }
 
-    // Create User (Default checkIn status false rahega)
     const user = await User.create({
       name, 
       email, 
@@ -112,61 +114,43 @@ const registerUser = async (req, res) => {
       department, 
       year, 
       role: role || 'student',
-      checkIn: false, // 🆕 New field for scanner logic
+      checkIn: false,
       skills: [],
-      bio: "Hey there! I am using Hackathon Hub.",
+      bio: "Student at College",
       isLookingForTeam: true
     });
 
+    // Handle Post-Registration Logic (QR or Welcome Email)
     if (user) {
-      // Logic: Frontend se check karo ki ye Event Registration hai ya Normal Signup
-      const isEventRegistration = req.body.isEventRegistration && true; 
+      const isEventRegistration = req.body.isEventRegistration; 
 
       if (isEventRegistration) {
-        // 🎫 CASE 1: Event Ticket Email (Campus Connect)
-        
-        // QR Code Generation
+        // CASE: User directly registering through an event link
         const qrCodeDataUrl = await QRCode.toDataURL(user._id.toString());
         const base64Data = qrCodeDataUrl.split(',')[1];
 
         try {
           await sendEmail({
             email: user.email,
-            subject: "Your Event Ticket & QR Code 🎟️",
-            message: `
-              <h1>Welcome to Campus Connect, ${user.name}! 🚀</h1>
-              <p>Registration Successful.</p>
-              <p>Please find your <b>Entry Ticket (QR Code)</b> attached below.</p>
-              <p>Show this QR code at the event gate for scanning.</p>
-            `,
-            attachments: [
-              {
-                filename: 'ticket-qr.png',
-                content: base64Data,
-                encoding: 'base64'
-              }
-            ]
+            subject: "Your Event Pass 🎟️",
+            message: `<h1>Welcome, ${user.name}!</h1><p>Your ID-based QR code is attached.</p>`,
+            attachments: [{ filename: 'id-qr.png', content: base64Data, encoding: 'base64' }]
           });
-        } catch (err) {
-          console.log("Ticket Email Error:", err.message);
-        }
+        } catch (err) { console.log("ID Email Error"); }
 
       } else {
-        // 👋 CASE 2: General Welcome Email (Hackathon Hub / Normal Signup)
+        // CASE: Normal Community Signup
         try {
           await sendEmail({
             email: user.email,
-            subject: "Welcome to Hackathon Hub! 🚀",
-            message: `<p>Hi ${user.name}, Welcome! Your account is ready. Complete your profile to find a team.</p>`
+            subject: "Welcome to Eventora! 🚀",
+            message: `<p>Hi ${user.name}, your account is ready. Start joining events now!</p>`
           });
-        } catch (err) {
-          console.log("Welcome Email Error:", err.message);
-        }
+        } catch (err) { console.log("Welcome Email Error"); }
       }
     }
 
-    // ✅ FIX: Added Response & Closed function properly
-    res.status(201).json({
+    return res.status(201).json({
         _id: user._id,
         name: user.name,
         email: user.email,
@@ -175,12 +159,12 @@ const registerUser = async (req, res) => {
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
 
 // ==========================================
-// 2. LOGIN USER 🔑
+// 4. LOGIN USER
 // ==========================================
 const loginUser = async (req, res) => {
   try {
@@ -190,29 +174,32 @@ const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Please provide email and password" });
     }
 
-    // 1. Check User (Password select karna padega kyunki model me select:false hai)
     const user = await User.findOne({ email }).select('+password');
 
-    // 2. Check Password using Model Method
     if (user && (await user.matchPassword(password))) {
-      res.json({
-        _id: user.id,
+      return res.json({
+        _id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
         token: generateToken(user._id),
-        user: user
+        user: { // Redundant but safer for different frontend versions
+            id: user._id,
+            name: user.name,
+            role: user.role,
+            email: user.email
+        }
       });
     } else {
-      res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Invalid email or password' });
     }
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
 
 // ==========================================
-// 3. FORGOT PASSWORD (OTP) 🔥
+// 5. FORGOT & RESET PASSWORD
 // ==========================================
 const forgotPassword = async (req, res) => {
   try {
@@ -222,37 +209,28 @@ const forgotPassword = async (req, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
     user.otp = otp;
     user.otpExpire = Date.now() + 10 * 60 * 1000; 
     await user.save();
 
-    const message = `
-      <h1>Password Reset Request</h1>
-      <p>Your OTP is: <b style="font-size: 24px;">${otp}</b></p>
-      <p>Valid for 10 minutes.</p>
-    `;
-
-    // Send Email
     try {
       await sendEmail({
         email: user.email,
-        subject: "Password Reset OTP",
-        message: `Your OTP is: ${otp}`
+        subject: "Password Reset OTP - Eventora",
+        message: `<div style="text-align:center;"><h2>Your OTP</h2><h1 style="font-size:40px; color:#4F46E5;">${otp}</h1><p>Valid for 10 minutes.</p></div>`
       });
-      res.status(200).json({ success: true, message: "OTP sent to email!" });
+      return res.status(200).json({ success: true, message: "OTP sent to email!" });
     } catch (error) {
       user.otp = undefined;
       user.otpExpire = undefined;
       await user.save();
-      res.status(500).json({ message: "Email send failed" });
+      return res.status(500).json({ message: "Email service down" });
     }
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
 
-// 4. RESET PASSWORD
 const resetPassword = async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
@@ -264,22 +242,29 @@ const resetPassword = async (req, res) => {
 
     if (!user) return res.status(400).json({ message: "Invalid OTP or Expired" });
 
-    // Update Password (ye plain text jayega, Model ka pre-save hook isse hash karega)
-    user.password = newPassword;
+    user.password = newPassword; // Pre-save hook will hash this
     user.otp = undefined;
     user.otpExpire = undefined;
-    
     await user.save();
 
-    res.status(200).json({ success: true, message: "Password Reset Successful! Login Now." });
+    return res.status(200).json({ success: true, message: "Password updated successfully!" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
 
-// Helper
+// ==========================================
+// HELPERS
+// ==========================================
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET || 'secret123', { expiresIn: '30d' });
 };
 
-module.exports = { registerUser, loginUser, forgotPassword, resetPassword, addGatekeeper, getGatekeepers };
+module.exports = { 
+    registerUser, 
+    loginUser, 
+    forgotPassword, 
+    resetPassword, 
+    addGatekeeper, 
+    getGatekeepers 
+};

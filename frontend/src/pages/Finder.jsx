@@ -1,42 +1,32 @@
 import React, { useState, useEffect, useContext } from 'react';
-import axios from 'axios';
+import { getMyTeam, getFinderUsers, sendInvite } from '../api'; // 👈 API functions import किए
 import { toast } from 'react-hot-toast';
 import { Search, Send, Users, Loader2, GraduationCap, AlertCircle } from 'lucide-react';
 import AuthContext from '../context/AuthContext';
-import { useLocation, Link, useNavigate } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 
 const Finder = () => {
   const { user } = useContext(AuthContext);
   const location = useLocation();
-  const navigate = useNavigate();
 
-  // 1. URL se Event ID nikalo (Dynamic)
+  // 1. URL se Event ID nikalo
   const queryParams = new URLSearchParams(location.search);
   const eventIdFromUrl = queryParams.get('eventId');
 
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [myTeamId, setMyTeamId] = useState(null); // Store my team ID
-  const [myTeamEventId, setMyTeamEventId] = useState(null); // Store my team's event ID
+  const [myTeamId, setMyTeamId] = useState(null); 
+  const [myTeamEventId, setMyTeamEventId] = useState(null); 
 
   useEffect(() => {
     const fetchData = async () => {
-      const token = localStorage.getItem("token");
-      if (!token) return;
-
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-
       try {
         setLoading(true);
 
-        // 2. Load My Team First (to know context)
-        // Note: Assuming endpoint returns array of teams or single team object. Adjust based on your API.
-        let teamId = null;
-        let eventId = eventIdFromUrl;
-
+        // 2. Load My Team First (via api.js)
         try {
-            const teamRes = await axios.get(`http://localhost:5000/api/teams/my-team`, config);
+            const teamRes = await getMyTeam();
             const teams = Array.isArray(teamRes.data) ? teamRes.data : (teamRes.data ? [teamRes.data] : []);
             
             // Find team where I am leader
@@ -46,24 +36,14 @@ const Finder = () => {
             if (leaderTeam) {
                 setMyTeamId(leaderTeam._id);
                 setMyTeamEventId(leaderTeam.event?._id || leaderTeam.event);
-                teamId = leaderTeam._id;
-                // Agar URL me eventId nahi hai, to meri team ka event ID use karo
-                if (!eventId) eventId = leaderTeam.event?._id || leaderTeam.event;
             }
         } catch (err) {
-            console.log("User has no team yet or error fetching team.");
+            console.log("User has no team yet.");
         }
 
-        // 3. Load Students (Pass eventId if available to filter relevant students)
-        // Backend API should handle optional eventId
-        const url = eventId 
-            ? `http://localhost:5000/api/finder/students?eventId=${eventId}` 
-            : `http://localhost:5000/api/finder/students`; 
-            
-        // Note: Agar backend '/finder/users' use kar raha hai to URL change kar lena
-        // Assuming '/api/finder/students' or '/api/finder/users' works.
-        // Let's use the one that works in your previous TeamFinder.jsx:
-        const studentRes = await axios.get('http://localhost:5000/api/finder/users', config); 
+        // 3. Load Students (via api.js)
+        // Backend handle karega filter logic, hum sirf users fetch kar rahe hain
+        const studentRes = await getFinderUsers(); 
         setStudents(studentRes.data);
 
       } catch (error) {
@@ -75,35 +55,30 @@ const Finder = () => {
     };
 
     if (user) fetchData();
-  }, [user, eventIdFromUrl]);
+  }, [user]);
 
   // 🚀 REAL CONNECT REQUEST
   const sendConnectRequest = async (studentId) => {
-    // Check 1: Kya user ke paas team hai?
     if (!myTeamId) {
       toast.error("You need to create a Team first! Go to Dashboard.");
       return;
     }
 
-    try {
-      const token = localStorage.getItem("token");
-      toast.loading("Sending Invite...");
+    const toastId = toast.loading("Sending Invite...");
 
-      await axios.post("http://localhost:5000/api/finder/invite", { // Updated endpoint from invite logic
+    try {
+      // ✅ api.js function used
+      await sendInvite({
         recipientId: studentId,
         teamId: myTeamId,
         message: "Hey! We'd love to have you in our team."
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
 
-      toast.dismiss();
-      toast.success("Invite Sent Successfully! 🚀");
+      toast.success("Invite Sent Successfully! 🚀", { id: toastId });
 
     } catch (error) {
-      toast.dismiss();
       const msg = error.response?.data?.message || "Failed to send invite.";
-      toast.error(msg);
+      toast.error(msg, { id: toastId });
     }
   };
 
@@ -111,8 +86,9 @@ const Finder = () => {
   const filteredStudents = students.filter(student => {
     if (!student) return false;
     const term = searchTerm.toLowerCase();
-    // Exclude myself
     const myId = user?._id || user?.id;
+    
+    // Exclude myself
     if (String(student._id) === String(myId)) return false;
 
     return (
@@ -140,9 +116,8 @@ const Finder = () => {
           
           {/* Action Area */}
           <div className="flex gap-3 items-center flex-wrap">
-            {/* Show "Create Team" warning if no team */}
             {!myTeamId && !loading && (
-               <Link to="/dashboard" className="text-sm text-red-600 font-bold bg-red-50 px-4 py-2 rounded-xl hover:bg-red-100 flex items-center gap-2 border border-red-100 transition-colors">
+               <Link to="/student-dashboard" className="text-sm text-red-600 font-bold bg-red-50 px-4 py-2 rounded-xl hover:bg-red-100 flex items-center gap-2 border border-red-100 transition-colors">
                  <AlertCircle size={16}/> Create Team First
                </Link>
             )}

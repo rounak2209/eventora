@@ -1,5 +1,5 @@
 import { createContext, useState, useEffect } from "react";
-import axios from "axios";
+import api, { loginUser as apiLogin, registerUser as apiRegister } from "../api"; 
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 
@@ -10,7 +10,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // --- Helper: JWT Token Decoder ---
+  // --- Helper: JWT Token Decoder (Token ke andar se data nikalne ke liye) ---
   const parseJwt = (token) => {
     try {
       return JSON.parse(atob(token.split('.')[1]));
@@ -27,64 +27,51 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem("token");
     
     if (token) {
-      // STEP 1: TURANT Token se Data nikalo (Instant Login)
-      // Isse page blank nahi hoga
+      // STEP 1: Instant Login (Reload pe data turant dikhane ke liye)
       const decoded = parseJwt(token);
       
       if (decoded && decoded.exp * 1000 > Date.now()) {
-          // Basic User Set kar do
           const initialUser = { 
               ...decoded, 
               _id: decoded.id || decoded._id || decoded.userId 
           };
           setUser(initialUser);
       } else {
-          localStorage.removeItem("token");
+          localStorage.clear();
           setUser(null);
           setLoading(false);
           return;
       }
 
-      // STEP 2: Background me Full Profile Data Mangwao (Skills, Bio, etc.)
+      // STEP 2: Background Profile Sync (Extra details fetch karne ke liye)
       try {
-        const config = { headers: { Authorization: `Bearer ${token}` } };
-        
-        // 🔥 Ye wo API hai jo 404 de rahi thi. Hum isse Try-Catch me rakhenge.
-        // Agar ye chali, to user data update ho jayega.
-        // Agar fail hui, to Step 1 wala user data rahega.
-        const { data } = await axios.get("http://localhost:5000/api/finder/profile", config);
+        const { data } = await api.get("/finder/profile");
         
         if (data) {
-            // Backend se jo data aaya use state me merge kar do
             setUser((prev) => ({ 
                 ...prev, 
-                ...(data.user || data), // Handle structure difference
-                skills: data.user?.skills || data.skills || [],
-                bio: data.user?.bio || data.bio || ""
+                ...(data.user || data),
+                skills: data.user?.skills || data.skills || prev?.skills || [],
+                bio: data.user?.bio || data.bio || prev?.bio || ""
             }));
-            // console.log("Profile Synced via API"); 
         }
-
       } catch (error) {
-        // Agar API fail ho, to chupchap raho, App crash mat karo.
-        console.warn("Background Profile Sync Failed (Using Token Data Only). Check Backend Route.");
+        console.warn("Background Sync Failed: Token data hi use ho raha hai.");
       }
     }
     
     setLoading(false);
   };
 
-  // --- LOGIN ---
+  // --- LOGIN LOGIC ---
   const loginUser = async (formData) => {
     try {
-      const { data } = await axios.post("http://localhost:5000/api/auth/login", formData);
-      console.log("Login Response:", data);
+      const { data } = await apiLogin(formData);
+      
       localStorage.setItem("token", data.token);
+      localStorage.setItem("role", data.role); 
       
-      // Token Data
       const decoded = parseJwt(data.token);
-      
-      // API Response Data (Merge both)
       const fullUserData = { 
           ...decoded, 
           ...(data.user || {}), 
@@ -93,23 +80,27 @@ export const AuthProvider = ({ children }) => {
       };
 
       setUser(fullUserData);
-      
       toast.success("Login Successful! 🎉");
-      navigate("/dashboard");
+      
+      if (data.role === 'organizer') navigate("/organizer-dashboard");
+      else if (data.role === 'gatekeeper') navigate("/gatekeeper-dashboard");
+      else navigate("/student-dashboard");
+
     } catch (error) {
       toast.error(error.response?.data?.message || "Login Failed");
+      throw error; 
     }
   };
 
-  // --- REGISTER ---
+  // --- REGISTER LOGIC ---
   const registerUser = async (formData) => {
     try {
-      const { data } = await axios.post("http://localhost:5000/api/auth/register", formData);
+      const { data } = await apiRegister(formData);
       
       localStorage.setItem("token", data.token);
-      
+      localStorage.setItem("role", data.role);
+
       const decoded = parseJwt(data.token);
-      
       const fullUserData = { 
           ...decoded, 
           ...(data.user || {}), 
@@ -118,24 +109,33 @@ export const AuthProvider = ({ children }) => {
       };
 
       setUser(fullUserData);
-      
       toast.success("Registration Successful! 🚀");
-      navigate("/dashboard");
+      navigate("/student-dashboard");
     } catch (error) {
       toast.error(error.response?.data?.message || "Registration Failed");
+      throw error;
     }
   };
 
-  // --- LOGOUT ---
+  // --- 🛡️ PROFESSIONAL LOGOUT LOGIC (100% Fixed) ---
   const logoutUser = () => {
-    localStorage.removeItem("token");
+    // 1. Pehle localStorage saaf karo
+    localStorage.clear(); 
+    
+    // 2. State ko null karo
     setUser(null);
-    toast.success("Logged out");
-    navigate("/login");
+    
+    // 3. Success message dikhao
+    toast.success("Logged out successfully");
+
+    // 4. 🔥 PROFESSIONAL FIX: window.location use karna sabse best hai logout ke liye
+    // Isse React Router ki 'Race Condition' khatam ho jati hai. 
+    // Ye app ko refresh karke seedha landing page (Home) par phenk dega.
+    window.location.href = "/"; 
   };
 
   return (
-    <AuthContext.Provider value={{ user, loginUser, registerUser, logoutUser, loading }}>
+    <AuthContext.Provider value={{ user, setUser, loginUser, registerUser, logoutUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

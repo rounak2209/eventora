@@ -1,10 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import { 
+    getEvents, 
+    getGatekeepers, 
+    getStats, 
+    downloadAnalyticsReport, 
+    sendAnalyticsEmail, 
+    issueAllCertificates, 
+    addGatekeeper 
+} from '../api'; // 👈 Centralized API Imports
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { saveAs } from 'file-saver';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { User, Mail, Shield, Plus, X, Trash2, Download, Send, Award, CheckSquare, Square } from 'lucide-react'; // 👈 CheckSquare & Square added
+import { User, Mail, Shield, Plus, X, Trash2, Download, Send, Award, CheckSquare, Square } from 'lucide-react';
 
 const OrganizerDashboard = () => {
   const [events, setEvents] = useState([]); 
@@ -19,20 +27,19 @@ const OrganizerDashboard = () => {
   // Modal State
   const [showGatekeeperForm, setShowGatekeeperForm] = useState(false);
   
-  // 🔥 UPDATED STATE: Added assignedEventIds array
+  // Gatekeeper Form State
   const [gkData, setGkData] = useState({ name: '', email: '', password: '', assignedEventIds: [] });
   
   const navigate = useNavigate();
-  const token = localStorage.getItem('token');
-  const config = { headers: { Authorization: `Bearer ${token}` } };
 
   // 1. Fetch Events & Gatekeepers on Load
   useEffect(() => {
     const initData = async () => {
       try {
-        // Events fetch
-        const eventRes = await axios.get('http://localhost:5000/api/events', config);
+        // Events fetch (via api.js)
+        const eventRes = await getEvents();
         setEvents(eventRes.data);
+        
         if (eventRes.data.length > 0) {
            const sortedEvents = eventRes.data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
            setSelectedEventId(sortedEvents[0]._id);
@@ -40,8 +47,8 @@ const OrganizerDashboard = () => {
             setLoading(false);
         }
 
-        // Gatekeepers fetch
-        const gkRes = await axios.get('http://localhost:5000/api/auth/gatekeepers', config);
+        // Gatekeepers fetch (via api.js)
+        const gkRes = await getGatekeepers();
         setGatekeepers(gkRes.data);
 
       } catch (err) {
@@ -58,7 +65,8 @@ const OrganizerDashboard = () => {
     const fetchStats = async () => {
       setLoading(true);
       try {
-        const res = await axios.get(`http://localhost:5000/api/analytics/stats?eventId=${selectedEventId}`, config);
+        // Fetch stats (via api.js)
+        const res = await getStats(selectedEventId);
         setStats(res.data.stats);
         setLoading(false);
       } catch (err) { 
@@ -72,10 +80,8 @@ const OrganizerDashboard = () => {
   // Actions
   const handleDownload = async () => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/analytics/download-report?eventId=${selectedEventId}`, {
-        ...config,
-        responseType: 'blob'
-      });
+      // PDF Download (Blob handled in api.js)
+      const res = await downloadAnalyticsReport(selectedEventId);
       saveAs(new Blob([res.data], { type: 'application/pdf' }), 'Event_Report.pdf');
     } catch (err) {
       toast.error("Download Failed");
@@ -85,7 +91,7 @@ const OrganizerDashboard = () => {
   const handleEmail = async () => {
     if(!window.confirm("Email report to yourself?")) return;
     try {
-      await axios.post('http://localhost:5000/api/analytics/send-report', { eventId: selectedEventId }, config);
+      await sendAnalyticsEmail({ eventId: selectedEventId });
       toast.success("Email sent!");
     } catch (err) {
       toast.error("Email failed.");
@@ -101,7 +107,7 @@ const OrganizerDashboard = () => {
     const toastId = toast.loading("Generating & Sending Certificates... 📨");
 
     try {
-        const res = await axios.post('http://localhost:5000/api/certificate/issue-all', { eventId: selectedEventId }, config);
+        const res = await issueAllCertificates({ eventId: selectedEventId });
         toast.success(res.data.message, { id: toastId });
     } catch (err) {
         console.error(err);
@@ -135,11 +141,12 @@ const OrganizerDashboard = () => {
     const toastId = toast.loading("Creating Gatekeeper & Sending Credentials... 📨");
 
     try {
-      await axios.post('http://localhost:5000/api/auth/add-gatekeeper', gkData, config);
+      // API Call (via api.js)
+      await addGatekeeper(gkData);
       toast.success(`Gatekeeper "${gkData.name}" created!`, { id: toastId });
       
       // Refresh List
-      const gkRes = await axios.get('http://localhost:5000/api/auth/gatekeepers', config);
+      const gkRes = await getGatekeepers();
       setGatekeepers(gkRes.data);
       
       setShowGatekeeperForm(false);
@@ -168,10 +175,10 @@ const OrganizerDashboard = () => {
       {/* --- CONTROLS SECTION --- */}
       <div className="bg-white p-4 rounded-lg shadow mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-2 w-full md:w-auto">
-             <span className="font-bold text-gray-700">Select Event:</span>
-             <select value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)} className="border p-2 rounded w-full md:w-64 bg-gray-50">
-               {events.map(ev => <option key={ev._id} value={ev._id}>{ev.title}</option>)}
-             </select>
+              <span className="font-bold text-gray-700">Select Event:</span>
+              <select value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)} className="border p-2 rounded w-full md:w-64 bg-gray-50">
+                {events.map(ev => <option key={ev._id} value={ev._id}>{ev.title}</option>)}
+              </select>
         </div>
         <div className="flex gap-2">
             <button onClick={handleDownload} className="flex items-center gap-2 bg-gray-800 text-white px-4 py-2 rounded hover:bg-gray-900">
@@ -379,7 +386,7 @@ const OrganizerDashboard = () => {
                     </div>
                     
                     <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-lg shadow-lg flex justify-center items-center gap-2">
-                         Create & Send Credentials <Send size={18} />
+                          Create & Send Credentials <Send size={18} />
                     </button>
                 </form>
             </div>

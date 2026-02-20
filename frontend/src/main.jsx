@@ -5,13 +5,16 @@ import './index.css'
 import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext.jsx'
 import { Toaster } from 'react-hot-toast'
+import { SocketProvider } from './context/SocketContext.jsx'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter> {/* Router sabse bahar */}
       <AuthProvider> {/* Phir AuthProvider */}
-        <App />
-        <Toaster position="top-center" /> {/* Notifications ke liye */}
+        <SocketProvider>
+          <App />
+          <Toaster position="top-center" /> {/* Notifications ke liye */}
+        </SocketProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>,

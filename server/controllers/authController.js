@@ -21,15 +21,14 @@ const addGatekeeper = async (req, res) => {
     }
 
     // Manual Password Hashing for Staff accounts
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    // const salt = await bcrypt.genSalt(10);
+    // const hashedPassword = await bcrypt.hash(password, salt);
 
     const user = await User.create({
       name,
       email,
-      password: hashedPassword,
-      role: 'gatekeeper',
-      department: 'Staff', 
+      password: password,
+      role: 'gatekeeper', 
       assignedEvents: assignedEventIds || []
     });
 

@@ -155,7 +155,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* EVENTS TAB (Hidden for brevity, same as before) */}
+      {/* EVENTS TAB */}
       {activeTab === 'events' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {events.map(event => {
@@ -175,9 +175,45 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* --- 🔥 MY HUB TAB (FIXED: Group Chat + 1-on-1 Chat) --- */}
+      {/* --- 🔥 MY HUB TAB (FIXED: Added Solo Events + Group Chat + 1-on-1 Chat) --- */}
       {activeTab === 'my_hub' && (
         <div className="space-y-12">
+            
+            {/* 🔥 NEW SECTION: MY SOLO EVENTS */}
+            <section>
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3"><div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><User size={20}/></div><h2 className="text-2xl font-black text-gray-800">My Solo Events</h2></div>
+                </div>
+                {events.filter(e => !e.isTeamEvent && isRegistered(e)).length === 0 ? (
+                    <div className="p-12 bg-white rounded-3xl border border-dashed text-center text-gray-400 font-medium">No solo events joined yet.</div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {events.filter(e => !e.isTeamEvent && isRegistered(e)).map(event => (
+                            <div key={event._id} className="bg-white p-6 rounded-3xl shadow-sm border border-blue-100 relative overflow-hidden group hover:shadow-md transition">
+                                <button onClick={() => handleShowTicket(event, null)} className="absolute top-6 right-6 bg-black text-white p-3 rounded-2xl hover:scale-110 transition duration-300">
+                                    <QrCode size={20}/>
+                                </button>
+                                
+                                <div className="mb-4 pr-12">
+                                    <h3 className="text-xl font-black text-gray-900 leading-tight">{event.title}</h3>
+                                    <span className="inline-block mt-2 text-[10px] font-black uppercase px-2 py-1 rounded bg-green-100 text-green-700">Solo Participant</span>
+                                </div>
+                                
+                                <div className="space-y-2 mb-6">
+                                    <div className="flex items-center text-gray-500 text-xs font-bold uppercase tracking-wider"><Calendar size={14} className="mr-2 text-blue-500"/> {new Date(event.date).toDateString()}</div>
+                                    <div className="flex items-center text-gray-500 text-xs font-bold uppercase tracking-wider"><MapPin size={14} className="mr-2 text-blue-500"/> {event.venue}</div>
+                                </div>
+
+                                <button onClick={() => handleShowTicket(event, null)} className="w-full bg-blue-50 text-blue-600 border border-blue-200 py-3 rounded-xl font-black text-sm hover:bg-blue-100 transition flex justify-center items-center gap-2">
+                                    <QrCode size={16}/> View Event Ticket
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </section>
+
+            {/* MY SQUADS SECTION */}
             <section>
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3"><div className="p-2 bg-purple-100 text-purple-600 rounded-lg"><Users size={20}/></div><h2 className="text-2xl font-black text-gray-800">My Squads</h2></div>
@@ -201,7 +237,7 @@ const Dashboard = () => {
                                 {/* 🔥 GROUP CHAT BUTTON ADDED */}
                                 <button 
                                     onClick={() => openGroupChat(team)} 
-                                    className="bg-purple-100 text-purple-600 p-2 rounded-xl hover:bg-purple-200 transition flex items-center gap-2 text-xs font-bold"
+                                    className="bg-purple-100 text-purple-600 p-2 rounded-xl hover:bg-purple-200 transition flex items-center gap-2 text-xs font-bold mt-14"
                                 >
                                     <MessageCircle size={16}/> Group Chat
                                 </button>

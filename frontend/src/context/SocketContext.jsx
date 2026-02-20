@@ -1,7 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import io from 'socket.io-client';
 import AuthContext from './AuthContext';
-
+import { SOCKET_URL } from '../api';
 const SocketContext = createContext();
 
 export const SocketProvider = ({ children }) => {
@@ -10,7 +10,7 @@ export const SocketProvider = ({ children }) => {
 
     useEffect(() => {
         if (user) {
-            const newSocket = io('http://localhost:5000'); // Backend URL
+            const newSocket = io(SOCKET_URL);
             
             // 🔥 IMPORTANT: Ensure we join the room immediately upon connection
             newSocket.on('connect', () => {

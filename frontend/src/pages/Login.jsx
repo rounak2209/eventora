@@ -1,47 +1,26 @@
 import { useState, useContext } from "react";
 import AuthContext from "../context/AuthContext";
-import { Link, useNavigate } from "react-router-dom";
-import { loginUser } from "../api"; // 👈 New Import (api.js se)
-import { toast } from "react-hot-toast";
+import { Link } from "react-router-dom";
 
 const Login = () => {
-  const { loginUser: contextLogin } = useContext(AuthContext); 
+  // 🔥 Context se loginUser nikal liya
+  const { loginUser } = useContext(AuthContext); 
+  
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
 
   const onSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // 🔥 OLD: axios.post("http://localhost:5000/api/auth/login", formData);
-      // ✅ NEW: Direct function call from api.js
-      const res = await loginUser(formData);
-      
-      // 1. Token & Data Save karo
-      localStorage.setItem("token", res.data.token);
-      localStorage.setItem("role", res.data.role); 
-      
-      toast.success(res.data.message || "Login Successful");
-
-      // 2. Role Based Redirect Logic 🔀
-      if (res.data.role === 'organizer') {
-        navigate('/organizer-dashboard');
-      } else if (res.data.role === 'gatekeeper') {
-        navigate('/gatekeeper-dashboard');
-      } else {
-        navigate('/student-dashboard');
-      }
-      
-      // Context/State refresh karne ke liye reload
-      window.location.reload(); 
-
+      // ✅ Bas ye ek line! 
+      // API call, token save, Toast message, aur Role-based Redirect...
+      // Ye sab tumhare AuthContext ke andar jo loginUser banaya h, wo khud kar lega.
+      await loginUser(formData);
     } catch (error) {
       console.error(error);
-      toast.error(error.response?.data?.message || "Invalid Email or Password");
-    } finally {
-      setLoading(false);
+      setLoading(false); // Agar error aaye (wrong password), toh button wapas theek ho jaye
     }
   };
 

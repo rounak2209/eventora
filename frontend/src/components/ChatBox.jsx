@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { X, Send, Loader2, Users, Check, CheckCheck } from 'lucide-react'; // 🔥 Icons Import
-import axios from 'axios';
+import { getChatHistory } from '../api';
 import AuthContext from '../context/AuthContext';
 import SocketContext from '../context/SocketContext';
 
@@ -27,9 +27,7 @@ const ChatBox = ({ recipientId, recipientName, onClose, isGroup = false }) => {
     useEffect(() => {
         const fetchHistory = async () => {
             try {
-                const res = await axios.get(`http://localhost:5000/api/chat/history/${recipientId}?isGroup=${isGroup}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const res = await getChatHistory(recipientId, isGroup);
                 setMessages(res.data);
                 setLoading(false);
 
@@ -97,7 +95,16 @@ const ChatBox = ({ recipientId, recipientName, onClose, isGroup = false }) => {
     const sendMessage = async (e) => {
         e.preventDefault();
         if (!newMessage.trim()) return;
+        
 
+        if (!socket) {
+            console.error("Socket is not connected yet!");
+            // Agar aapke paas react-hot-toast hai toh ye use kar sakte ho
+            // toast.error("Connecting to chat... Please wait a second."); 
+            return; 
+        }
+
+        
         const msgData = {
             sender: myId,
             recipient: recipientId,

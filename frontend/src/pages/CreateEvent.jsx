@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { createEvent } from '../api'; // 👈 Centralized API Import
+import { createEvent } from '../api'; 
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
+import { ImagePlus } from 'lucide-react'; // 👈 Icon import kiya
 
 const CreateEvent = () => {
   const navigate = useNavigate();
@@ -20,12 +21,18 @@ const CreateEvent = () => {
     teamSizeMax: 1
   });
 
+  const [bannerFile, setBannerFile] = useState(null); // 🔥 Photo store karne ke liye
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData({
       ...formData,
       [name]: type === 'checkbox' ? checked : value
     });
+  };
+
+  const handleFileChange = (e) => {
+    setBannerFile(e.target.files[0]);
   };
 
   const handleSubmit = async (e) => {
@@ -37,21 +44,26 @@ const CreateEvent = () => {
         return;
       }
 
-      // Payload format adjust karna (teamSize object backend ko chahiye)
-      // Ye logic functionality ke liye zaroori hai, is ise rakha gaya hai
-      const payload = {
-        ...formData,
-        teamSize: { min: formData.teamSizeMin, max: formData.teamSizeMax }
-      };
+      // 🔥 Photo upload ke liye FormData banana zaroori hai
+      const payload = new FormData();
+      Object.keys(formData).forEach(key => {
+        payload.append(key, formData[key]);
+      });
+      
+      if (bannerFile) {
+        payload.append('banner', bannerFile);
+      }
 
-      // 🔥 OLD: axios.post('http://localhost:5000/api/events', payload, { headers: ... });
-      // ✅ NEW: api.js handle karega base URL aur token automatically
+      const tid = toast.loading("Uploading Event Details & Image...");
+      
       await createEvent(payload);
 
+      toast.dismiss(tid);
       toast.success("Event Created Successfully! 🎉");
-      navigate('/organizer-dashboard'); // Context ke hisab se dashboard navigate karein
+      navigate('/organizer-dashboard'); 
     } catch (error) {
       console.error(error);
+      toast.dismiss();
       toast.error(error.response?.data?.message || "Failed to create event");
     }
   };
@@ -61,6 +73,16 @@ const CreateEvent = () => {
       <h2 className="text-2xl font-bold mb-6 text-center text-indigo-600">Create New Event 📅</h2>
       
       <form onSubmit={handleSubmit} className="space-y-4">
+        
+        {/* 🔥 NEW: Banner Image Upload */}
+        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center bg-gray-50 mb-4 hover:bg-gray-100 transition cursor-pointer">
+          <ImagePlus size={32} className="text-indigo-400 mb-2"/>
+          <label className="text-sm font-bold text-gray-700 cursor-pointer">
+             {bannerFile ? bannerFile.name : "Upload Event Banner (Optional)"}
+            <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+          </label>
+        </div>
+
         {/* Title */}
         <div>
           <label className="block text-gray-700 font-bold mb-2">Event Title</label>

@@ -8,8 +8,8 @@ import { toast } from 'react-hot-toast';
 import { 
   Calendar, Users, Bell, QrCode, LogOut, Trash2, 
   Plus, ArrowRight, Check, X, MapPin, User, History, Settings,
-  Search, UserPlus, Copy, MessageCircle 
-} from 'lucide-react';
+  Search, UserPlus, Copy, MessageCircle, ImageIcon 
+} from 'lucide-react'; // 👈 ImageIcon add kiya
 import AuthContext from '../context/AuthContext';
 import TicketModal from '../components/TicketModal'; 
 import { useNavigate } from 'react-router-dom';
@@ -39,7 +39,7 @@ const Dashboard = () => {
   // 🔥 Chat State
   const [chatOpen, setChatOpen] = useState(false);
   const [chatRecipient, setChatRecipient] = useState(null);
-  const [isGroupChat, setIsGroupChat] = useState(false); // New Flag for Group Chat
+  const [isGroupChat, setIsGroupChat] = useState(false); 
 
   useEffect(() => {
     const fetchData = async () => {
@@ -165,7 +165,19 @@ const Dashboard = () => {
             const isLeader = hasTeam && String(myTeam.leader?._id || myTeam.leader) === String(user?._id || user?.id);
             return (
               <div key={event._id} className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 relative group hover:shadow-xl transition-all duration-300">
-                <div className={`absolute top-6 right-6 text-[10px] font-black uppercase px-3 py-1 rounded-full ${event.isTeamEvent ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>{event.isTeamEvent ? 'Team' : 'Solo'}</div>
+                
+                {/* 🔥 NEW: Render Banner Image */}
+                {event.banner ? (
+                  <div className="w-full h-40 mb-4 rounded-xl overflow-hidden shadow-sm">
+                    <img src={event.banner} alt={event.title} className="w-full h-full object-cover transition-transform hover:scale-105 duration-500"/>
+                  </div>
+                ) : (
+                  <div className="w-full h-40 mb-4 rounded-xl bg-gray-100 flex items-center justify-center text-gray-300">
+                    <ImageIcon size={40} />
+                  </div>
+                )}
+
+                <div className={`absolute top-8 right-8 text-[10px] font-black uppercase px-3 py-1 rounded-full shadow-md ${event.isTeamEvent ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>{event.isTeamEvent ? 'Team' : 'Solo'}</div>
                 <h3 className="text-xl font-black text-gray-900 mb-4 pr-12 leading-tight">{event.title}</h3>
                 <div className="space-y-2 mb-6"><div className="flex items-center text-gray-500 text-xs font-bold uppercase tracking-wider"><Calendar size={14} className="mr-2 text-indigo-500"/> {new Date(event.date).toDateString()}</div><div className="flex items-center text-gray-500 text-xs font-bold uppercase tracking-wider"><MapPin size={14} className="mr-2 text-indigo-500"/> {event.venue}</div></div>
                 {hasTicket ? <button onClick={() => handleShowTicket(event, myTeam)} className="w-full bg-green-50 text-green-700 border border-green-200 py-3 rounded-2xl font-black text-sm flex items-center justify-center gap-2">✓ TICKET CONFIRMED (View QR)</button> : hasTeam ? ( isLeader ? <div className="space-y-3"><div className="bg-purple-50 p-3 rounded-2xl border border-purple-100 text-center"><p className="text-xs text-purple-700 font-bold mb-2">Team Ready: {myTeam.name}</p><button onClick={() => handleBookTicket(event._id)} className="w-full bg-purple-600 text-white py-3 rounded-xl font-black shadow-lg hover:bg-purple-700 transition">Finalize Team Entry (Get QRs) 🎟️</button></div></div> : <div className="bg-yellow-50 p-4 rounded-xl text-center border border-yellow-100"><p className="text-yellow-700 font-bold text-sm">Waiting for Leader to Book</p></div> ) : ( event.isTeamEvent ? <div className="space-y-3">{createTeamData.eventId === event._id ? <form onSubmit={handleCreateTeam} className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100"><input type="text" placeholder="Squad Name..." className="w-full text-sm p-3 border rounded-xl mb-3 focus:ring-2 focus:ring-indigo-500 outline-none" value={createTeamData.name} onChange={e => setCreateTeamData({...createTeamData, name: e.target.value})} required/><div className="flex gap-2"><button className="bg-indigo-600 text-white text-xs py-2.5 rounded-xl font-bold flex-1">Create</button><button type="button" onClick={() => setCreateTeamData({ name: '', eventId: '' })} className="bg-white text-gray-500 text-xs py-2.5 rounded-xl font-bold border">Cancel</button></div></form> : <button onClick={() => setCreateTeamData({...createTeamData, eventId: event._id})} className="w-full bg-black text-white py-3 rounded-2xl font-black text-sm hover:scale-[1.02] transition">Create Team</button>}<div className="flex gap-2"><input type="text" placeholder="Join Code" className="bg-gray-100 border rounded-2xl px-4 text-sm flex-1 uppercase font-bold outline-none" value={joinCode[event._id] || ''} onChange={(e) => setJoinCode({...joinCode, [event._id]: e.target.value})}/><button onClick={() => handleJoinByCode(event._id)} className="bg-indigo-100 hover:bg-indigo-200 p-3 rounded-2xl text-indigo-700 transition-all"><ArrowRight size={18}/></button></div></div> : <button onClick={() => handleBookTicket(event._id)} className="w-full bg-indigo-600 text-white py-3 rounded-2xl font-black shadow-lg shadow-indigo-100 hover:bg-indigo-700 hover:scale-[1.02] transition">Register Solo</button> )}
@@ -175,11 +187,11 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* --- 🔥 MY HUB TAB (FIXED: Added Solo Events + Group Chat + 1-on-1 Chat) --- */}
+      {/* --- 🔥 MY HUB TAB --- */}
       {activeTab === 'my_hub' && (
         <div className="space-y-12">
             
-            {/* 🔥 NEW SECTION: MY SOLO EVENTS */}
+            {/* MY SOLO EVENTS */}
             <section>
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3"><div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><User size={20}/></div><h2 className="text-2xl font-black text-gray-800">My Solo Events</h2></div>
@@ -190,11 +202,19 @@ const Dashboard = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {events.filter(e => !e.isTeamEvent && isRegistered(e)).map(event => (
                             <div key={event._id} className="bg-white p-6 rounded-3xl shadow-sm border border-blue-100 relative overflow-hidden group hover:shadow-md transition">
-                                <button onClick={() => handleShowTicket(event, null)} className="absolute top-6 right-6 bg-black text-white p-3 rounded-2xl hover:scale-110 transition duration-300">
+                                
+                                {/* 🔥 NEW: Render Banner Image here too */}
+                                {event.banner && (
+                                  <div className="w-full h-32 mb-4 rounded-xl overflow-hidden shadow-sm">
+                                    <img src={event.banner} alt={event.title} className="w-full h-full object-cover"/>
+                                  </div>
+                                )}
+
+                                <button onClick={() => handleShowTicket(event, null)} className={`absolute ${event.banner ? 'top-8' : 'top-6'} right-6 bg-black text-white p-3 rounded-2xl hover:scale-110 transition duration-300 z-10 shadow-lg`}>
                                     <QrCode size={20}/>
                                 </button>
                                 
-                                <div className="mb-4 pr-12">
+                                <div className="mb-4 pr-12 mt-2">
                                     <h3 className="text-xl font-black text-gray-900 leading-tight">{event.title}</h3>
                                     <span className="inline-block mt-2 text-[10px] font-black uppercase px-2 py-1 rounded bg-green-100 text-green-700">Solo Participant</span>
                                 </div>
@@ -227,14 +247,13 @@ const Dashboard = () => {
 
                         return (
                         <div key={team._id} className="bg-white p-6 rounded-3xl shadow-sm border border-purple-100 relative overflow-hidden group hover:shadow-md transition">
-                            {hasTicket && <button onClick={() => handleShowTicket(fullEvent, team)} className="absolute top-6 right-6 bg-black text-white p-3 rounded-2xl hover:scale-110 transition duration-300"><QrCode size={20}/></button>}
+                            {hasTicket && <button onClick={() => handleShowTicket(fullEvent, team)} className="absolute top-6 right-6 bg-black text-white p-3 rounded-2xl hover:scale-110 transition duration-300 z-10"><QrCode size={20}/></button>}
                             
                             <div className="flex justify-between items-start mb-2">
                                 <div>
                                     <h3 className="text-xl font-black text-gray-900 leading-tight">{team.name}</h3>
                                     <p className="text-sm text-indigo-600 font-bold mb-6">{fullEvent?.title || "Event Details Loading..."}</p>
                                 </div>
-                                {/* 🔥 GROUP CHAT BUTTON ADDED */}
                                 <button 
                                     onClick={() => openGroupChat(team)} 
                                     className="bg-purple-100 text-purple-600 p-2 rounded-xl hover:bg-purple-200 transition flex items-center gap-2 text-xs font-bold mt-14"
@@ -253,14 +272,12 @@ const Dashboard = () => {
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center px-1"><p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Members</p>{isLeader && <button onClick={() => navigate(`/finder?eventId=${fullEvent?._id}`)} className="flex items-center gap-1 text-[10px] font-black uppercase text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-lg transition"><UserPlus size={14}/> Add Member</button>}</div>
                                 {team.members?.map(m => {
-                                    // Don't show 1-on-1 chat button for myself
                                     const isMe = String(m._id) === String(user?._id || user?.id);
                                     return (
                                     <div key={m._id} className="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-100">
                                         <span className="text-sm font-bold text-gray-700 flex items-center">
                                             {m.name} {String(team.leader?._id || team.leader) === String(m._id) && <Check size={14} className="ml-2 text-indigo-500"/>}
                                         </span>
-                                        {/* 🔥 1-ON-1 CHAT BUTTON */}
                                         {!isMe && (
                                             <button 
                                                 onClick={() => openChat(m._id, m.name)} 
@@ -281,11 +298,9 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* --- 🔥 INBOX TAB (FIXED: Leader Name) --- */}
+      {/* --- INBOX TAB --- */}
       {activeTab === 'inbox' && (
           <div className="max-w-3xl mx-auto">
-             
-             {/* 1. MESSAGES */}
              <div className="mb-10">
                  <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                      <MessageCircle className="text-blue-600"/> Messages (From Leaders)
@@ -314,8 +329,6 @@ const Dashboard = () => {
                     </div>
                  )}
              </div>
-
-             {/* 2. OFFICIAL INVITES */}
              <div>
                  <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                      <Bell className="text-purple-600"/> Official Team Invites
@@ -340,8 +353,6 @@ const Dashboard = () => {
                                                 Target Event: {linkedEvent.title}
                                             </p>
                                         )}
-
-                                        {/* 🔥 FIX: Try req.sender.name first, then team.leader.name */}
                                         <p className="text-sm text-gray-500">
                                             From Leader: {req.sender?.name || req.team?.leader?.name || "Team Captain"}
                                         </p>
@@ -375,12 +386,11 @@ const Dashboard = () => {
 
       <TicketModal isOpen={showTicketModal} onClose={() => setShowTicketModal(false)} ticketData={ticketData} />
 
-      {/* 🔥 CHAT BOX RENDER */}
       {chatOpen && chatRecipient && (
           <ChatBox 
               recipientId={chatRecipient._id} 
               recipientName={chatRecipient.name} 
-              isGroup={isGroupChat} // 🔥 Updated prop to handle Group/1-on-1 logic
+              isGroup={isGroupChat}
               onClose={() => setChatOpen(false)} 
           />
       )}

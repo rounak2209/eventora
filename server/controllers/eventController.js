@@ -9,7 +9,7 @@ const createEvent = async (req, res) => {
   try {
     const { 
       title, description, date, venue, registrationDeadline, 
-      category, price, maxSeats, isTeamEvent, teamSize, isLive 
+      category, price, maxSeats, isTeamEvent, teamSizeMin, teamSizeMax, isLive 
     } = req.body;
 
     // Basic Validation
@@ -22,6 +22,9 @@ const createEvent = async (req, res) => {
         return res.status(400).json({ message: 'Deadline cannot be after the event date!' });
     }
 
+    // 🔥 Multer ne photo upload karke req.file mein link de diya hai
+    const bannerUrl = req.file ? req.file.path : "";
+
     const event = await Event.create({
       title, 
       description, 
@@ -29,11 +32,15 @@ const createEvent = async (req, res) => {
       venue, 
       registrationDeadline, 
       category,
-      price: price || 0,
-      maxSeats,
-      isTeamEvent: isTeamEvent || false,
-      teamSize: teamSize || { min: 1, max: 1 },
-      isLive: isLive || false,
+      banner: bannerUrl, // 👈 Photo URL Save karo
+      price: Number(price) || 0,
+      maxSeats: Number(maxSeats),
+      isTeamEvent: isTeamEvent === 'true', // FormData se string aati hai
+      teamSize: { 
+        min: Number(teamSizeMin) || 1, 
+        max: Number(teamSizeMax) || 1 
+      },
+      isLive: isLive === 'true',
       organizer: req.user._id
     });
 
@@ -52,7 +59,7 @@ const getEvents = async (req, res) => {
     const events = await Event.find()
       .populate('organizer', 'name email')
       .sort({ date: 1 })
-      .lean(); // lean() se performance fast ho jati hai (read-only queries ke liye)
+      .lean(); 
       
     res.json(events);
   } catch (error) {
@@ -65,20 +72,16 @@ const getEvents = async (req, res) => {
 // ==========================================
 const getGatekeeperEvents = async (req, res) => {
   try {
-    // 1. Gatekeeper profile check
     const gatekeeper = await User.findById(req.user._id);
 
     if (!gatekeeper) {
         return res.status(404).json({ message: "Gatekeeper profile not found" });
     }
 
-    // 2. Fetch only Assigned Events
     const events = await Event.find({
         _id: { $in: gatekeeper.assignedEvents } 
     }).sort({ date: 1 }).lean();
 
-    // 3. Calculate LIVE Stats for each assigned event
-    // Ye data Guard Dashboard ke progress bar mein dikhega
     const eventsWithStats = await Promise.all(events.map(async (event) => {
         const totalRegistrations = await Registration.countDocuments({ event: event._id });
         const scannedCount = await Registration.countDocuments({ event: event._id, hasAttended: true });

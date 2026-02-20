@@ -19,6 +19,11 @@ const eventSchema = new mongoose.Schema({
     type: String, required: [true, 'Please provide description']
   },
   
+  // 🔥 NEW: Event Banner Image URL
+  banner: {
+    type: String, default: ""
+  },
+
   // --- 2. TIME & VENUE ---
   date: {
     type: Date, required: [true, 'Please provide event date']

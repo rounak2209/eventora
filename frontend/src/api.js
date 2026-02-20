@@ -49,7 +49,7 @@ export const getGatekeepers = () => api.get('/auth/gatekeepers');
 
 // --- EVENTS ---
 export const getEvents = () => api.get('/events');
-export const createEvent = (data) => api.post('/events', data);
+export const createEvent = (data) => api.post('/events', data, { headers: { 'Content-Type': 'multipart/form-data' } });
 export const joinEvent = (data) => api.post('/events/join', data);
 export const getGatekeeperEvents = () => api.get('/events/gatekeeper-view');
 

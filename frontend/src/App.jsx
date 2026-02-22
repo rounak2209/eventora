@@ -14,6 +14,7 @@ import OrganizerDashboard from './pages/OrganizerDashboard';
 import CreateEvent from './pages/CreateEvent';
 import GatekeeperDashboard from './pages/GatekeeperDashboard';
 import Scanner from './pages/Scanner';
+import Profile from './pages/Profile'; // 🔥 Added Profile import
 
 // 🛡️ PUBLIC ROUTE HELPER:
 // Iska kaam hai ki agar banda pehle se login hai, toh wo wapas login/register page na dekh sake.
@@ -35,7 +36,10 @@ const PublicRoute = ({ children }) => {
 
 function App() {
   return (
-    <div className="min-h-screen bg-gray-50">
+    // 🔥 BAS YAHAN CHANGE KIYA HAI: bg-gray-50 ko bg-transparent kiya hai
+    // Isse tumhari CSS wali image background mein dikhne lagegi!
+    <div className="min-h-screen bg-transparent">
+      
       {/* 🧭 Top Navigation Bar jo har page pe rahega */}
       <Navbar />
       
@@ -59,6 +63,15 @@ function App() {
         {/* Login aur Register ko PublicRoute mein dala hai safety ke liye */}
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+
+        {/* ========================================== */}
+        {/* 🌟 UNIVERSAL ROUTE (Sabke Liye)            */}
+        {/* ========================================== */}
+        <Route path="/profile" element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        } />
 
         {/* ========================================== */}
         {/* 🎓 STUDENT ZONE (Sirf Students ke liye)     */}

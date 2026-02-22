@@ -22,8 +22,8 @@ const createEvent = async (req, res) => {
         return res.status(400).json({ message: 'Deadline cannot be after the event date!' });
     }
 
-    // 🔥 Multer ne photo upload karke req.file mein link de diya hai
-    const bannerUrl = req.file ? req.file.path : "";
+    // 🔥 URL EXTRACTION FIX: Cloudinary kabhi secure_url deta hai, kabhi path. Dono check karenge.
+    const bannerUrl = req.file ? (req.file.secure_url || req.file.path) : "";
 
     const event = await Event.create({
       title, 
@@ -32,14 +32,17 @@ const createEvent = async (req, res) => {
       venue, 
       registrationDeadline, 
       category,
-      banner: bannerUrl, // 👈 Photo URL Save karo
+      banner: bannerUrl, // 👈 Photo URL yahan Save hoga
       price: Number(price) || 0,
       maxSeats: Number(maxSeats),
-      isTeamEvent: isTeamEvent === 'true', // FormData se string aati hai
+      isTeamEvent: isTeamEvent === 'true' || isTeamEvent === true, // Safely handle boolean
+      
+      // 🔥 EXACT MATCH WITH YOUR SCHEMA
       teamSize: { 
         min: Number(teamSizeMin) || 1, 
         max: Number(teamSizeMax) || 1 
       },
+      
       isLive: isLive === 'true',
       organizer: req.user._id
     });
@@ -140,4 +143,106 @@ const joinEvent = async (req, res) => {
   }
 };
 
-module.exports = { createEvent, getEvents, getGatekeeperEvents, joinEvent };
+// ==========================================
+// 5. UPDATE EVENT (By Organizer)
+// ==========================================
+const updateEvent = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updates = { ...req.body }; // Create a fresh copy of req.body
+
+        const event = await Event.findById(id);
+        
+        if (!event) {
+            return res.status(404).json({ message: "Event not found" });
+        }
+
+        // 🔥 SAFE SECURITY CHECK: Make sure IDs match perfectly
+        const eventOrganizerId = event.organizer._id ? event.organizer._id.toString() : event.organizer.toString();
+        const loggedInUserId = req.user._id ? req.user._id.toString() : req.user.id.toString();
+
+        if (eventOrganizerId !== loggedInUserId) {
+            return res.status(403).json({ message: "Not authorized! You can only edit events you created." });
+        }
+
+        // Agar nayi image aayi hai toh update karo, warna purani rehne do
+        if (req.file) {
+            updates.banner = req.file.secure_url || req.file.path;
+        }
+
+        // 🔥 FIX: Convert Strings back to correct Data Types for MongoDB
+        if (updates.price !== undefined) updates.price = Number(updates.price);
+        if (updates.maxSeats !== undefined) updates.maxSeats = Number(updates.maxSeats);
+        if (updates.isLive !== undefined) updates.isLive = updates.isLive === 'true' || updates.isLive === true;
+
+        // Object structure preserve karna (specifically teamSize ke liye)
+        if (updates.teamSizeMin !== undefined || updates.teamSizeMax !== undefined) {
+            updates.teamSize = {
+                min: Number(updates.teamSizeMin) || (event.teamSize ? event.teamSize.min : 1),
+                max: Number(updates.teamSizeMax) || (event.teamSize ? event.teamSize.max : 1)
+            };
+        }
+
+        const updatedEvent = await Event.findByIdAndUpdate(id, updates, { new: true });
+        res.json({ message: "Event Updated Successfully! ✅", event: updatedEvent });
+
+    } catch (error) {
+        console.error("Update Event Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ==========================================
+// 6. DELETE EVENT (By Organizer)
+// ==========================================
+const deleteEvent = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const event = await Event.findById(id);
+        
+        if (!event) {
+            return res.status(404).json({ message: "Event not found" });
+        }
+
+        // 🔥 SAFE SECURITY CHECK
+        const eventOrganizerId = event.organizer._id ? event.organizer._id.toString() : event.organizer.toString();
+        const loggedInUserId = req.user._id ? req.user._id.toString() : req.user.id.toString();
+
+        if (eventOrganizerId !== loggedInUserId) {
+            return res.status(403).json({ message: "Not authorized! You can only delete events you created." });
+        }
+
+        await Event.findByIdAndDelete(id);
+        res.json({ message: "Event deleted permanently! 🗑️" });
+
+    } catch (error) {
+        console.error("Delete Event Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// ==========================================
+// 7. GET ORGANIZER'S OWN EVENTS (For Dashboard)
+// ==========================================
+const getOrganizerEvents = async (req, res) => {
+    try {
+        // Sirf wahi events dhoondho jinka organizer current logged-in user hai
+        const events = await Event.find({ organizer: req.user._id })
+            .sort({ createdAt: -1 }) // Naye events upar
+            .lean();
+        res.json(events);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// EXPORT WALE BLOCK MEIN ISKO BHI ADD KAR DENA
+module.exports = { 
+    createEvent, 
+    getEvents, 
+    getGatekeeperEvents, 
+    joinEvent,
+    updateEvent, 
+    deleteEvent,
+    getOrganizerEvents // 🔥 Ye naya add kiya hai
+};

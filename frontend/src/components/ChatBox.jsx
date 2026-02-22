@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { X, Send, Loader2, Users, Check, CheckCheck } from 'lucide-react'; // 🔥 Icons Import
+import { X, Send, Loader2, Users, Check, CheckCheck } from 'lucide-react'; 
 import { getChatHistory } from '../api';
 import AuthContext from '../context/AuthContext';
 import SocketContext from '../context/SocketContext';
@@ -16,26 +16,21 @@ const ChatBox = ({ recipientId, recipientName, onClose, isGroup = false }) => {
     const myId = user?._id || user?.id;
     const token = localStorage.getItem('token');
 
-    // 1. Join Rooms (User & Group)
     useEffect(() => {
         if (socket && isGroup) {
             socket.emit("join_team", recipientId);
         }
     }, [socket, isGroup, recipientId]);
 
-    // 2. Load History & Emit Read
     useEffect(() => {
         const fetchHistory = async () => {
             try {
                 const res = await getChatHistory(recipientId, isGroup);
                 setMessages(res.data);
                 setLoading(false);
-
-                // 🔥 Agar 1-on-1 chat hai aur messages hain, toh "Mark as Read" bhejo
                 if (socket && !isGroup && res.data.length > 0) {
                     socket.emit("mark_as_read", { senderId: recipientId, recipientId: myId });
                 }
-
             } catch (err) {
                 console.error("Chat load error", err);
                 setLoading(false);
@@ -44,11 +39,9 @@ const ChatBox = ({ recipientId, recipientName, onClose, isGroup = false }) => {
         fetchHistory();
     }, [recipientId, token, isGroup, socket, myId]);
 
-    // 3. Real-time Listeners
     useEffect(() => {
         if (!socket) return;
         
-        // A. Handle New Message
         const handleReceive = (msg) => {
             const isRelevant = isGroup 
                 ? msg.recipient === recipientId 
@@ -57,8 +50,6 @@ const ChatBox = ({ recipientId, recipientName, onClose, isGroup = false }) => {
             if (isRelevant) {
                 setMessages((prev) => {
                     if (prev.length > 0 && prev[prev.length - 1]._id === msg._id) return prev;
-                    
-                    // Agar chat khuli hai aur samne wale ne message bheja, toh turant Read mark karo
                     if (!isGroup && msg.sender._id === recipientId) {
                         socket.emit("mark_as_read", { senderId: recipientId, recipientId: myId });
                     }
@@ -67,8 +58,6 @@ const ChatBox = ({ recipientId, recipientName, onClose, isGroup = false }) => {
             }
         };
 
-        // B. 🔥 Handle "Blue Tick" Update
-        // Jab samne wala mera message padh le
         const handleReadUpdate = ({ readBy }) => {
             if (!isGroup && readBy === recipientId) {
                 setMessages(prev => prev.map(msg => 
@@ -86,88 +75,95 @@ const ChatBox = ({ recipientId, recipientName, onClose, isGroup = false }) => {
         };
     }, [socket, recipientId, myId, isGroup]);
 
-    // Scroll to bottom
     useEffect(() => {
         scrollRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    // Send Message
     const sendMessage = async (e) => {
         e.preventDefault();
-        if (!newMessage.trim()) return;
-        
-
-        if (!socket) {
-            console.error("Socket is not connected yet!");
-            // Agar aapke paas react-hot-toast hai toh ye use kar sakte ho
-            // toast.error("Connecting to chat... Please wait a second."); 
-            return; 
-        }
-
+        if (!newMessage.trim() || !socket) return;
         
         const msgData = {
             sender: myId,
             recipient: recipientId,
             content: newMessage,
             isGroup: isGroup,
-            read: false, // Default Unread
+            read: false,
             timestamp: new Date()
         };
 
         socket.emit("send_message", msgData);
-
-        // Optimistic UI Update (Only for 1-on-1 to show sending tick immediately)
         if (!isGroup) {
              setMessages((prev) => [...prev, { ...msgData, sender: { _id: myId } }]);
         }
-        
         setNewMessage("");
     };
 
     return (
-        <div className="fixed bottom-4 right-4 w-80 md:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5">
+        // 🔥 EXPERT BUG FIX: Added `h-[28rem]` to permanently LOCK the outer box height.
+        // Ye box ab kisi bhi haal mein stretch nahi hoga!
+        <div className="fixed bottom-4 right-4 w-80 md:w-96 h-[28rem] bg-black/60 backdrop-blur-3xl saturate-150 border border-white/10 border-t-white/20 border-l-white/20 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5">
+            
             {/* Header */}
-            <div className={`p-4 flex justify-between items-center text-white ${isGroup ? 'bg-purple-600' : 'bg-indigo-600'}`}>
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center font-bold">
-                        {isGroup ? <Users size={16}/> : recipientName?.[0]?.toUpperCase()}
+            <div className={`p-4 flex justify-between items-center text-white border-b border-white/5 shrink-0 ${isGroup ? 'bg-purple-500/10' : 'bg-indigo-500/10'}`}>
+                <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 border rounded-xl flex items-center justify-center font-black shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)] ${isGroup ? 'bg-purple-500/20 border-purple-500/30' : 'bg-indigo-500/20 border-indigo-500/30'}`}>
+                        {isGroup ? <Users size={16} className="text-purple-300"/> : <span className="text-indigo-300 text-sm">{recipientName?.[0]?.toUpperCase()}</span>}
                     </div>
-                    <h3 className="font-bold text-sm">{recipientName} {isGroup && "(Group)"}</h3>
+                    <div>
+                        <h3 className="font-bold text-sm drop-shadow-sm text-white leading-tight">{recipientName}</h3>
+                        <p className={`text-[9px] font-black uppercase tracking-widest mt-0.5 ${isGroup ? 'text-purple-300/80' : 'text-indigo-300/80'}`}>
+                            {isGroup ? "Squad Chat" : "Direct Message"}
+                        </p>
+                    </div>
                 </div>
-                <button onClick={onClose} className="hover:bg-white/20 p-1 rounded-lg transition"><X size={18}/></button>
+                <button onClick={onClose} className="bg-white/5 hover:bg-white/10 p-1.5 rounded-lg transition-all border border-transparent hover:border-white/10 active:scale-95">
+                    <X size={18} className="text-gray-300 hover:text-white" />
+                </button>
             </div>
 
-            {/* Messages Area */}
-            <div className="flex-1 p-4 overflow-y-auto h-80 bg-gray-50 flex flex-col gap-3">
+            {/* 🔥 EXPERT BUG FIX: flex-1 ensures it fills space, overflow-y-auto enables scroll. */}
+            <div className="flex-1 p-4 overflow-y-auto bg-transparent flex flex-col gap-3 custom-scrollbar">
                 {loading ? (
-                    <div className="flex justify-center mt-10"><Loader2 className="animate-spin text-indigo-500"/></div>
+                    <div className="flex justify-center mt-10"><Loader2 className="animate-spin text-indigo-400" size={24}/></div>
                 ) : messages.length === 0 ? (
-                    <p className="text-center text-gray-400 text-xs mt-10">Start the conversation!</p>
+                    <div className="text-center mt-10">
+                        <div className="bg-white/5 inline-block p-2 rounded-2xl border border-white/5 mb-2 shadow-inner">
+                             <MessageCircle size={20} className="text-gray-400" />
+                        </div>
+                        <p className="text-gray-400 text-xs font-medium italic drop-shadow-sm">Break the ice!</p>
+                    </div>
                 ) : (
                     messages.map((msg, idx) => {
                         const senderId = msg.sender?._id || msg.sender;
                         const isMe = String(senderId) === String(myId);
                         
                         return (
-                            <div key={idx} ref={scrollRef} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                            <div key={idx} ref={scrollRef} className={`flex flex-col ${isMe ? 'items-end' : 'items-start animate-in slide-in-from-left-2'}`}>
                                 {isGroup && !isMe && (
-                                    <span className="text-[10px] text-gray-500 mb-1 ml-1">
-                                        {msg.sender?.name || "Member"}
+                                    <span className="text-[10px] text-indigo-300/80 font-black mb-1 ml-2 uppercase">
+                                        {msg.sender?.name?.split(' ')[0] || "Member"}
                                     </span>
                                 )}
-                                <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${isMe ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-gray-100 text-gray-800 rounded-bl-none shadow-sm border border-gray-200'}`}>
+                                <div className={`max-w-[85%] p-3 rounded-[1rem] text-sm shadow-md border backdrop-blur-md ${
+                                    isMe 
+                                    ? 'bg-indigo-500/20 text-indigo-50 border-indigo-500/30 rounded-br-none shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]' 
+                                    : 'bg-white/5 text-gray-100 border-white/10 rounded-bl-none shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]'
+                                }`}>
                                     {msg.content}
                                 </div>
                                 
-                                {/* 🔥 TICKS LOGIC (Only for 1-on-1 and My Messages) */}
                                 {isMe && !isGroup && (
-                                    <span className="text-[10px] mt-1 mr-1 flex justify-end">
+                                    <div className="mt-1 flex items-center gap-1 mr-1">
+                                        <span className="text-[9px] text-gray-500 font-bold">
+                                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
                                         {msg.read ? (
-                                            <CheckCheck size={14} className="text-blue-500" /> // Blue Tick
+                                            <CheckCheck size={14} className="text-blue-400 drop-shadow-[0_0_5px_rgba(96,165,250,0.5)]" /> 
                                         ) : (
-                                            <Check size={14} className="text-gray-400" /> // Gray Tick
+                                            <Check size={14} className="text-gray-600" /> 
                                         )}
-                                    </span>
+                                    </div>
                                 )}
                             </div>
                         );
@@ -176,18 +172,29 @@ const ChatBox = ({ recipientId, recipientName, onClose, isGroup = false }) => {
             </div>
 
             {/* Input Area */}
-            <form onSubmit={sendMessage} className="p-3 bg-white border-t flex gap-2">
+            <form onSubmit={sendMessage} className="p-3 bg-white/[0.02] border-t border-white/10 flex gap-2 backdrop-blur-md shrink-0">
                 <input 
                     type="text" 
                     placeholder="Type a message..." 
-                    className="flex-1 bg-gray-100 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                    className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white outline-none focus:ring-1 focus:ring-indigo-500/50 shadow-[inset_0_1px_3px_rgba(0,0,0,0.5)] placeholder-gray-500 transition-all"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                 />
-                <button type="submit" className={`text-white p-2 rounded-xl transition ${isGroup ? 'bg-purple-600 hover:bg-purple-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}><Send size={18}/></button>
+                <button 
+                    type="submit" 
+                    className={`text-white p-2.5 rounded-xl transition-all active:scale-90 shadow-lg border shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] ${
+                        isGroup 
+                        ? 'bg-purple-600/70 hover:bg-purple-600 border-purple-500/30' 
+                        : 'bg-indigo-600/70 hover:bg-indigo-600 border-indigo-500/30'
+                    }`}
+                >
+                    <Send size={18} className={isGroup ? "text-purple-300" : "text-indigo-300"}/>
+                </button>
             </form>
         </div>
     );
 };
+
+const MessageCircle = ({size, className}) => <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>;
 
 export default ChatBox;

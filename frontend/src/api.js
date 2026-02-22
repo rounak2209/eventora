@@ -47,9 +47,40 @@ export const loginUser = (data) => api.post('/auth/login', data);
 export const addGatekeeper = (data) => api.post('/auth/add-gatekeeper', data);
 export const getGatekeepers = () => api.get('/auth/gatekeepers');
 
+// 🔥 NEW: Gatekeeper Update & Delete APIs
+export const updateGatekeeper = (id, data) => api.put(`/auth/gatekeeper/${id}`, data);
+export const deleteGatekeeper = (id) => api.delete(`/auth/gatekeeper/${id}`);
+
+// 🔥 YE RAHI NAYI LINE: Password update ke liye
+export const updatePassword = (data) => api.put('/auth/update-password', data);
+
 // --- EVENTS ---
 export const getEvents = () => api.get('/events');
-export const createEvent = (data) => api.post('/events', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+
+// 🔥 NEW LINE ADDED HERE: Organizer ko sirf uske apne events dikhane ke liye
+export const getOrganizerEvents = () => api.get('/events/my-events');
+
+// 🔥 EXPERT FIX: Removed manual 'multipart/form-data'. 
+// FormData khud automatically sahi headers lagata hai boundary ke sath!
+export const createEvent = (data) => api.post('/events', data, {
+    // Ye line assure karti hai ki default JSON header is file upload ko kharab na kare
+    transformRequest: [(data, headers) => {
+        delete headers['Content-Type'];
+        return data;
+    }]
+});
+
+// 🔥 NEW: Event Delete & Update APIs (Manage Section ke liye)
+export const deleteEvent = (eventId) => api.delete(`/events/${eventId}`);
+
+// 🔥 FIX ADDED HERE: Update me bhi FormData fix lagaya taaki 500 error na aaye
+export const updateEvent = (eventId, data) => api.put(`/events/${eventId}`, data, {
+    transformRequest: [(data, headers) => {
+        delete headers['Content-Type'];
+        return data;
+    }]
+});
+
 export const joinEvent = (data) => api.post('/events/join', data);
 export const getGatekeeperEvents = () => api.get('/events/gatekeeper-view');
 
@@ -75,6 +106,7 @@ export const updateProfile = (data) => api.put('/finder/profile', data);
 // --- 🔥 CHAT (New Section) ---
 export const getMyConversations = () => api.get('/chat/inbox'); 
 export const getChatHistory = (recipientId, isGroup) => api.get(`/chat/history/${recipientId}?isGroup=${isGroup}`);
+
 // --- CERTIFICATES ---
 export const issueCertificate = (data) => api.post('/certificate/issue', data);
 export const issueAllCertificates = (data) => api.post('/certificate/issue-all', data);

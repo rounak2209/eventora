@@ -10,10 +10,12 @@ const ProtectedRoute = ({ children, allowedRole }) => {
   // Agar page refresh hua hai toh jab tak token verify ho raha hai, ye screen dikhegi
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      // 🔥 UI EXPERT FIX: Changed bg-gray-50 to dark bg-[#09090b] to prevent the "White Flashbang" on refresh.
+      <div className="min-h-screen flex items-center justify-center bg-[#09090b]">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="font-bold text-blue-600 text-lg">Verifying Access... 🛡️</p>
+          {/* 🔥 Changed Blue spinner to Premium Orange Glow */}
+          <div className="w-12 h-12 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin shadow-[0_0_15px_rgba(245,158,11,0.2)]"></div>
+          <p className="font-black text-orange-400 text-xs uppercase tracking-[0.2em] animate-pulse">Verifying Access...</p>
         </div>
       </div>
     );

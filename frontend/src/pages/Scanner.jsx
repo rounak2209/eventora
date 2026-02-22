@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Scanner } from '@yudiel/react-qr-scanner';
-import { verifyTicket } from '../api'; // 👈 New Import (api.js se)
+import { verifyTicket } from '../api'; 
 import { toast } from 'react-hot-toast';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { XCircle, CheckCircle, LogOut, ArrowLeft } from 'lucide-react';
+import { XCircle, CheckCircle, LogOut, ArrowLeft } from 'lucide-react'; // 🔥 REMOVED ScanFocus completely!
 
 const ScannerPage = () => {
   const [scanResult, setScanResult] = useState(null); 
   const [scanData, setScanData] = useState(null);
-  const [message, setMessage] = useState("Scan a Ticket");
+  const [message, setMessage] = useState("Awaiting Scan...");
   const [pauseScan, setPauseScan] = useState(false);
   
   const navigate = useNavigate();
@@ -41,15 +41,12 @@ const ScannerPage = () => {
     const rawValue = detectedCodes?.[0]?.rawValue;
     if (!rawValue) return;
 
-    // Debugging
     console.log("Sending Data:", { qrData: rawValue, eventId: currentEventId });
 
     setPauseScan(true); 
-    setMessage("Verifying...");
+    setMessage("Verifying Ticket...");
 
     try {
-        // 🔥 OLD: axios.post('http://localhost:5000/...', { ... }, config);
-        // ✅ NEW: Direct function call from api.js (Headers auto handled)
         const res = await verifyTicket({ 
             qrData: rawValue, 
             eventId: currentEventId 
@@ -57,7 +54,7 @@ const ScannerPage = () => {
 
         // ✅ Success Case
         setScanResult('success');
-        setMessage("Entry Granted ✅");
+        setMessage("Entry Granted");
         setScanData(res.data.student);
         
         new Audio('https://codeskulptor-demos.commondatastorage.googleapis.com/pang/pop.mp3').play().catch(()=>{});
@@ -96,28 +93,46 @@ const ScannerPage = () => {
     console.error("Scanner Error:", error);
   };
 
-  // UI Colors
-  let bgColor = "bg-gray-900"; 
-  if (scanResult === 'success') bgColor = "bg-green-600";
-  if (scanResult === 'error') bgColor = "bg-red-600";
+  // Dynamic Neon Glows for the Glass Box
+  let glowStyle = "border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)]";
+  let messageColor = "text-orange-400";
+  
+  if (scanResult === 'success') {
+      glowStyle = "border-emerald-500 shadow-[0_0_40px_rgba(16,185,129,0.4)]";
+      messageColor = "text-emerald-400";
+  } else if (scanResult === 'error') {
+      glowStyle = "border-red-500 shadow-[0_0_40px_rgba(239,68,68,0.5)]";
+      messageColor = "text-red-500";
+  }
 
   return (
-    <div className={`min-h-screen flex flex-col items-center p-4 relative transition-colors duration-500 ease-in-out ${bgColor} text-white`}>
+    <div className="min-h-screen bg-transparent flex flex-col items-center p-4 relative font-sans text-gray-100 selection:bg-orange-500/30 overflow-hidden z-10">
       
-      <button onClick={() => navigate('/gatekeeper-dashboard')} className="absolute top-4 left-4 bg-black/40 p-2 rounded-full shadow-lg hover:bg-black/60 z-50 backdrop-blur-sm transition">
-        <ArrowLeft size={20} />
-      </button>
+      {/* Background Subtle Overlay */}
+      <div className="absolute inset-0 bg-black/20 pointer-events-none -z-10"></div>
 
-      <button onClick={() => { localStorage.clear(); navigate('/login'); }} className="absolute top-4 right-4 bg-black/40 p-2 rounded-full shadow-lg hover:bg-black/60 z-50 backdrop-blur-sm transition">
-        <LogOut size={20} />
-      </button>
-
-      <div className="mt-12 mb-6 text-center">
-        <h1 className="text-xl font-bold text-gray-400 uppercase tracking-widest">SCANNING FOR</h1>
-        <h2 className="text-3xl font-black text-yellow-400 mt-1 shadow-sm uppercase">{eventName}</h2>
+      {/* Glass Top Controls */}
+      <div className="w-full max-w-sm flex justify-between items-center mt-2 z-50">
+          <button onClick={() => navigate('/gatekeeper-dashboard')} className="bg-black/50 border border-white/10 p-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-black/70 backdrop-blur-xl transition-all active:scale-95 shadow-lg">
+            <ArrowLeft size={20} />
+          </button>
+          <button onClick={() => { localStorage.clear(); navigate('/login'); }} className="bg-red-500/10 border border-red-500/20 p-2.5 rounded-xl text-red-400 hover:bg-red-500/30 backdrop-blur-xl transition-all active:scale-95 shadow-lg">
+            <LogOut size={20} />
+          </button>
       </div>
 
-      <div className="relative w-full max-w-sm aspect-square bg-black rounded-2xl overflow-hidden border-4 border-white/20 shadow-2xl">
+      {/* Header */}
+      <div className="mt-8 mb-8 text-center px-4">
+        {/* 🔥 EXPERT FIX: Replaced ScanFocus with an animated glowing dot to prevent any Lucide errors! */}
+        <div className="inline-flex items-center gap-2 bg-black/50 backdrop-blur-md border border-orange-500/30 text-orange-400 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-4 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+            <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.8)]"></div> 
+            Scanner Active
+        </div>
+        <h2 className="text-3xl font-black text-white leading-tight uppercase tracking-tight drop-shadow-md break-words max-w-sm">{eventName}</h2>
+      </div>
+
+      {/* Scanner Box */}
+      <div className={`relative w-full max-w-sm aspect-square bg-black/60 backdrop-blur-2xl rounded-[2.5rem] overflow-hidden border-2 transition-all duration-500 ease-out z-10 ${glowStyle}`}>
         <Scanner 
             onScan={handleScan}
             onError={handleError}
@@ -126,42 +141,53 @@ const ScannerPage = () => {
             styles={{ container: { width: '100%', height: '100%' }, video: { objectFit: 'cover' } }}
         />
         
+        {/* Result Overlay Inside Scanner */}
         {scanResult && (
-            <div className={`absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm transition-all animate-in fade-in duration-300`}>
+            <div className={`absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md transition-all animate-in zoom-in-95 duration-300 z-20`}>
                 {scanResult === 'success' ? (
-                    <CheckCircle size={80} className="text-green-500 mb-4 animate-bounce" />
+                    <div className="bg-emerald-500/20 p-5 rounded-full mb-4 animate-bounce border border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.5)]">
+                        <CheckCircle size={60} className="text-emerald-400" />
+                    </div>
                 ) : (
-                    <XCircle size={80} className="text-red-500 mb-4 animate-pulse" />
+                    <div className="bg-red-500/20 p-5 rounded-full mb-4 animate-pulse border border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.5)]">
+                        <XCircle size={60} className="text-red-500" />
+                    </div>
                 )}
-                <h2 className={`text-3xl font-black uppercase ${scanResult === 'success' ? 'text-green-400' : 'text-red-500'}`}>
+                <h2 className={`text-3xl font-black uppercase tracking-widest ${scanResult === 'success' ? 'text-emerald-400' : 'text-red-500'}`}>
                     {scanResult === 'success' ? "GRANTED" : "DENIED"}
                 </h2>
             </div>
         )}
       </div>
 
-      <div className={`mt-6 w-full max-w-sm bg-white rounded-xl p-6 shadow-xl text-center text-gray-800 transition-all transform ${scanResult ? 'scale-105' : ''}`}>
-        <p className="text-xl font-bold mb-2">{message}</p>
+      {/* Info Card */}
+      <div className={`mt-8 w-full max-w-sm bg-black/50 backdrop-blur-2xl rounded-[2rem] p-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] border border-white/10 transition-all transform duration-300 z-10 ${scanResult ? 'scale-105 border-white/30' : ''}`}>
+        <p className={`text-xl font-black uppercase tracking-widest text-center transition-colors drop-shadow-md ${messageColor}`}>
+            {message}
+        </p>
 
         {scanData && (
-            <div className="bg-gray-100 p-4 rounded-lg text-left border-l-4 border-indigo-500 mt-4">
-                <p className="text-sm text-gray-500">NAME</p>
-                <p className="text-lg font-bold text-gray-900">{scanData.name}</p>
-                <div className="flex justify-between mt-2">
+            <div className="bg-black/40 p-5 rounded-2xl text-left border-l-4 border-l-emerald-500 mt-5 shadow-[inset_0_1px_3px_rgba(0,0,0,0.5)] animate-in fade-in slide-in-from-bottom-2">
+                <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1">Participant Name</p>
+                <p className="text-2xl font-black text-white mb-4 drop-shadow-sm">{scanData.name}</p>
+                
+                <div className="grid grid-cols-2 gap-4 border-t border-white/10 pt-4">
                     <div>
-                        <p className="text-sm text-gray-500">DEPT</p>
-                        <p className="font-semibold">{scanData.department}</p>
+                        <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1">Department</p>
+                        <p className="text-sm font-bold text-gray-200">{scanData.department}</p>
                     </div>
                     <div>
-                        <p className="text-sm text-gray-500">YEAR</p>
-                        <p className="font-semibold">{scanData.year}</p>
+                        <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1">Year</p>
+                        <p className="text-sm font-bold text-gray-200">{scanData.year}</p>
                     </div>
                 </div>
             </div>
         )}
         
         {!scanData && !scanResult && (
-             <p className="text-sm text-gray-400 mt-2">Point camera at the ticket QR code</p>
+             <div className="text-center mt-3">
+                 <p className="text-xs text-gray-400 font-bold tracking-widest uppercase">Point camera at QR code</p>
+             </div>
         )}
       </div>
     </div>

@@ -1,11 +1,12 @@
 const User = require('../models/User');
+const Event = require('../models/Event'); 
 const jwt = require('jsonwebtoken');
 const sendEmail = require('../utils/sendEmail');
 const QRCode = require('qrcode'); 
 const bcrypt = require('bcryptjs');
 
 // ==========================================
-// 1. ADD GATEKEEPER (By Organizer)
+// 1. ADD GATEKEEPER (Smart Add by Organizer)
 // ==========================================
 const addGatekeeper = async (req, res) => {
   try {
@@ -15,16 +16,42 @@ const addGatekeeper = async (req, res) => {
       return res.status(400).json({ message: "Name, Email and Password are required" });
     }
 
-    const userExists = await User.findOne({ email });
-    if (userExists) {
-      return res.status(400).json({ message: "User already exists" });
+    // 🔒 SECURITY LAYER 1: Check if events belong to Organizer
+    if (assignedEventIds && assignedEventIds.length > 0) {
+        const validEvents = await Event.find({ 
+            _id: { $in: assignedEventIds }, 
+            organizer: req.user._id 
+        });
+        if (validEvents.length !== assignedEventIds.length) {
+            return res.status(403).json({ message: "Security Alert: You can only assign events you created!" });
+        }
     }
 
-    // Manual Password Hashing for Staff accounts
-    // const salt = await bcrypt.genSalt(10);
-    // const hashedPassword = await bcrypt.hash(password, salt);
+    // 🔥 SMART FIX: Fetch WITH password so save() validation passes
+    let user = await User.findOne({ email }).select('+password');
 
-    const user = await User.create({
+    if (user) {
+        if (user.role !== 'gatekeeper') {
+             return res.status(400).json({ message: "User exists but is not a gatekeeper." });
+        }
+        
+        const currentEvents = user.assignedEvents.map(id => id.toString());
+        const newEventsToAdd = assignedEventIds || [];
+        const updatedEvents = [...new Set([...currentEvents, ...newEventsToAdd])];
+        
+        user.assignedEvents = updatedEvents;
+        await user.save(); // ✅ Safely saving with all required fields present
+        
+        return res.status(200).json({ 
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            message: "Existing Gatekeeper updated with new duties! ✅" 
+        });
+    }
+
+    user = await User.create({
       name,
       email,
       password: password,
@@ -32,7 +59,6 @@ const addGatekeeper = async (req, res) => {
       assignedEvents: assignedEventIds || []
     });
 
-    // Send Credentials via Email
     try {
         const emailMessage = `
             <div style="font-family: sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
@@ -75,14 +101,21 @@ const addGatekeeper = async (req, res) => {
 };
 
 // ==========================================
-// 2. GET GATEKEEPERS LIST
+// 2. GET GATEKEEPERS LIST 
 // ==========================================
 const getGatekeepers = async (req, res) => {
     try {
-        const gatekeepers = await User.find({ role: 'gatekeeper' })
-            .populate('assignedEvents', 'title date venue')
-            .select('-password')
-            .lean(); 
+        const organizerEvents = await Event.find({ organizer: req.user._id }).select('_id');
+        const eventIds = organizerEvents.map(event => event._id);
+
+        const gatekeepers = await User.find({ 
+            role: 'gatekeeper',
+            assignedEvents: { $in: eventIds } 
+        })
+        .populate('assignedEvents', 'title date venue')
+        .select('-password')
+        .lean(); 
+
         return res.json(gatekeepers);
     } catch (error) {
         return res.status(500).json({ message: error.message });
@@ -90,19 +123,64 @@ const getGatekeepers = async (req, res) => {
 };
 
 // ==========================================
-// 3. REGISTER USER (Student/Organizer)
+// 🔥 NEW: UPDATE GATEKEEPER DUTIES (FIXED & SECURE)
+// ==========================================
+const updateGatekeeper = async (req, res) => {
+    try {
+        const { assignedEventIds } = req.body;
+        
+        // 🔒 SECURITY LAYER 1
+        if (assignedEventIds && assignedEventIds.length > 0) {
+            const validEvents = await Event.find({ 
+                _id: { $in: assignedEventIds }, 
+                organizer: req.user._id 
+            });
+            if (validEvents.length !== assignedEventIds.length) {
+                return res.status(403).json({ message: "Security Alert: You can only assign your own events!" });
+            }
+        }
+
+        // 🔒 THE FIX: Using findOneAndUpdate to bypass the 'next is not a function' save() bug
+        const gatekeeper = await User.findOneAndUpdate(
+            { _id: req.params.id, role: 'gatekeeper' }, 
+            { $set: { assignedEvents: assignedEventIds } },
+            { new: true }
+        );
+        
+        if (!gatekeeper) {
+            return res.status(404).json({ message: "Gatekeeper not found" });
+        }
+        
+        return res.json({ message: "Duties updated successfully! ✏️" });
+    } catch (error) {
+        console.error("Update Gatekeeper Error:", error);
+        return res.status(500).json({ message: error.message });
+    }
+};
+
+// ==========================================
+// 🔥 NEW: REMOVE GATEKEEPER
+// ==========================================
+const deleteGatekeeper = async (req, res) => {
+    try {
+        await User.findByIdAndDelete(req.params.id);
+        return res.json({ message: "Gatekeeper removed permanently! 🗑️" });
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
+    }
+};
+
+// ==========================================
+// 3. REGISTER USER 
 // ==========================================
 const registerUser = async (req, res) => {
   try {
-    // 🔥 FIX: let use kiya taki modify kar sakein
     let { name, email, password, gender, department, year, role } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // 🔥 FIX LOGIC: Agar Student nahi hai, toh ye fields undefined kar do.
-    // Empty string ("") mat bhejo, warna Mongoose enum validation fail karega.
     if (role !== 'student') {
         gender = undefined;
         department = undefined;
@@ -125,15 +203,13 @@ const registerUser = async (req, res) => {
       checkIn: false,
       skills: [],
       bio: role === 'student' ? "Student at College" : "Event Organizer",
-      isLookingForTeam: role === 'student' // Sirf students team dhoondhte hain
+      isLookingForTeam: role === 'student' 
     });
 
-    // Handle Post-Registration Logic (QR or Welcome Email)
     if (user) {
       const isEventRegistration = req.body.isEventRegistration; 
 
       if (isEventRegistration) {
-        // CASE: User directly registering through an event link
         const qrCodeDataUrl = await QRCode.toDataURL(user._id.toString());
         const base64Data = qrCodeDataUrl.split(',')[1];
 
@@ -147,7 +223,6 @@ const registerUser = async (req, res) => {
         } catch (err) { console.log("ID Email Error"); }
 
       } else {
-        // CASE: Normal Community Signup
         try {
           await sendEmail({
             email: user.email,
@@ -217,9 +292,12 @@ const forgotPassword = async (req, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.otp = otp;
-    user.otpExpire = Date.now() + 10 * 60 * 1000; 
-    await user.save();
+    
+    // Safely update without triggering other validations
+    await User.findByIdAndUpdate(user._id, { 
+        otp: otp, 
+        otpExpire: Date.now() + 10 * 60 * 1000 
+    });
 
     try {
       await sendEmail({
@@ -229,9 +307,7 @@ const forgotPassword = async (req, res) => {
       });
       return res.status(200).json({ success: true, message: "OTP sent to email!" });
     } catch (error) {
-      user.otp = undefined;
-      user.otpExpire = undefined;
-      await user.save();
+      await User.findByIdAndUpdate(user._id, { $unset: { otp: 1, otpExpire: 1 } });
       return res.status(500).json({ message: "Email service down" });
     }
   } catch (error) {
@@ -253,9 +329,31 @@ const resetPassword = async (req, res) => {
     user.password = newPassword; 
     user.otp = undefined;
     user.otpExpire = undefined;
-    await user.save();
+    await user.save(); // Here it's fine because we are explicitly setting the password
 
     return res.status(200).json({ success: true, message: "Password updated successfully!" });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+// ==========================================
+// 🔥 6. UPDATE PASSWORD (FROM PROFILE)
+// ==========================================
+const updatePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    const user = await User.findById(req.user._id).select('+password');
+
+    if (!(await user.matchPassword(currentPassword))) {
+      return res.status(400).json({ message: "Current password is incorrect" });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    return res.status(200).json({ message: "Password updated successfully!" });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
@@ -274,5 +372,8 @@ module.exports = {
     forgotPassword, 
     resetPassword, 
     addGatekeeper, 
-    getGatekeepers 
+    getGatekeepers,
+    updateGatekeeper, 
+    deleteGatekeeper, 
+    updatePassword 
 };

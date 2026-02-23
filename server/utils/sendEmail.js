@@ -3,12 +3,19 @@ const nodemailer = require('nodemailer');
 const sendEmail = async (options) => {
   // 1. Setup Transporter (Ye Gmail se connect karega)
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true, // Port 465 ke liye true
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+  // 🔥 Ye teen lines zaroor dalo timeout rokne ke liye
+  connectionTimeout: 10000, // 10 seconds
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
+});
+
 
   // 2. Email ka content set karo
   const message = {

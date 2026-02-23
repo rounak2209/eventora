@@ -224,7 +224,7 @@ const registerUser = async (req, res) => {
 
       } else {
         try {
-          await sendEmail({
+           sendEmail({
             email: user.email,
             subject: "Welcome to Eventora! 🚀",
             message: `<p>Hi ${user.name}, your account is ready. Start joining events now!</p>`

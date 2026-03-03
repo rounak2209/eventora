@@ -11,7 +11,6 @@ const issueCertificate = async (req, res) => {
   try {
     const { email, eventId } = req.body;
 
-    // STEP 1: User aur Registration lookup
     const user = await User.findOne({ email }).lean();
     if (!user) return res.status(404).json({ message: "No user found with this email" });
 
@@ -27,14 +26,12 @@ const issueCertificate = async (req, res) => {
       return res.status(404).json({ message: "User is not registered for this event." });
     }
 
-    // STEP 2: Generate Unique Certificate ID if not exists
     if (!registration.certificateId) {
       registration.certificateId = `CERT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       registration.issuedAt = Date.now();
       await registration.save();
     }
 
-    // STEP 3: Prepare PDF Data
     const certData = {
       studentName: registration.user.name,
       teamName: registration.team ? registration.team.name : null,
@@ -44,11 +41,10 @@ const issueCertificate = async (req, res) => {
       verifyUrl: `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/certificate/verify/${registration.certificateId}`
     };
 
-    // STEP 4: Generate PDF into Buffer & Send
     const buffers = [];
     generateCertificatePDF(certData, 
-      (chunk) => buffers.push(chunk), // Data accumulator
-      async () => { // End callback
+      (chunk) => buffers.push(chunk), 
+      async () => { 
         try {
             const pdfBuffer = Buffer.concat(buffers);
             
@@ -62,25 +58,24 @@ const issueCertificate = async (req, res) => {
                     <p><b>Certificate ID:</b> ${registration.certificateId}</p>
                     <p>You can find the PDF attached to this email.</p>
                     <br>
-                    <p>Best Regards,<br>Team Eventora</p>
+                    <p>Best Regards,<br>Team Campus-Connect</p>
                   </div>
                 `,
                 attachments: [
                     {
                         filename: `Certificate_${user.name.replace(/\s+/g, '_')}.pdf`,
                         content: pdfBuffer,
-                        contentType: 'application/pdf'
                     }
                 ]
             });
 
-            res.status(200).json({ 
+            if (!res.headersSent) res.status(200).json({ 
               message: `Certificate sent to ${user.email} successfully! 📧`,
               certificateId: registration.certificateId
             });
 
         } catch (error) {
-            console.error("Email Error:", error);
+            console.error("Certificate Email Error:", error);
             if (!res.headersSent) res.status(500).json({ message: "PDF ready but Email failed" });
         }
       }
@@ -102,7 +97,6 @@ const issueAllCertificates = async (req, res) => {
     const event = await Event.findById(eventId).lean();
     if (!event) return res.status(404).json({ message: "Event not found" });
 
-    // Sirf unhe dhundo jo Present the
     const attendees = await Registration.find({ 
       event: eventId, 
       hasAttended: true 
@@ -114,11 +108,9 @@ const issueAllCertificates = async (req, res) => {
 
     let sentCount = 0;
 
-    // Serial processing to maintain server stability
     for (const reg of attendees) {
         if (!reg.user?.email) continue;
 
-        // Generate ID if missing
         if (!reg.certificateId) {
             reg.certificateId = `CERT-${eventId.slice(-4)}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
             reg.issuedAt = Date.now();
@@ -133,7 +125,6 @@ const issueAllCertificates = async (req, res) => {
             certificateId: reg.certificateId
         };
 
-        // Promise wrapper for PDF generation in loop
         await new Promise((resolve) => {
             let buffers = [];
             generateCertificatePDF(certData, 
@@ -151,7 +142,7 @@ const issueAllCertificates = async (req, res) => {
                         resolve();
                     } catch (err) {
                         console.error(`Failed for ${reg.user.email}`, err.message);
-                        resolve(); // Continue even if one fails
+                        resolve(); 
                     }
                 }
             );

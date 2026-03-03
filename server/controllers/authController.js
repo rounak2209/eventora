@@ -16,7 +16,6 @@ const addGatekeeper = async (req, res) => {
       return res.status(400).json({ message: "Name, Email and Password are required" });
     }
 
-    // 🔒 SECURITY LAYER 1: Check if events belong to Organizer
     if (assignedEventIds && assignedEventIds.length > 0) {
         const validEvents = await Event.find({ 
             _id: { $in: assignedEventIds }, 
@@ -27,7 +26,6 @@ const addGatekeeper = async (req, res) => {
         }
     }
 
-    // 🔥 SMART FIX: Fetch WITH password so save() validation passes
     let user = await User.findOne({ email }).select('+password');
 
     if (user) {
@@ -40,7 +38,7 @@ const addGatekeeper = async (req, res) => {
         const updatedEvents = [...new Set([...currentEvents, ...newEventsToAdd])];
         
         user.assignedEvents = updatedEvents;
-        await user.save(); // ✅ Safely saving with all required fields present
+        await user.save(); 
         
         return res.status(200).json({ 
             _id: user._id,
@@ -59,33 +57,30 @@ const addGatekeeper = async (req, res) => {
       assignedEvents: assignedEventIds || []
     });
 
-    try {
-        const emailMessage = `
-            <div style="font-family: sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
-                <h2 style="color: #4F46E5;">Welcome to Event Team! 🛡️</h2>
-                <p>Hello <b>${name}</b>,</p>
-                <p>You have been appointed as a <b>Gatekeeper</b> for our upcoming events.</p>
-                <p>Use the following credentials to access the scanner panel:</p>
-                <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #e2e8f0;">
-                    <p style="margin: 0;"><b>Login ID:</b> ${email}</p>
-                    <p style="margin: 5px 0 0 0;"><b>Password:</b> ${password}</p> 
-                </div>
-                <br>
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" 
-                   style="background: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
-                   Login to Duty
-                </a>
+    const emailMessage = `
+        <div style="font-family: sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
+            <h2 style="color: #4F46E5;">Welcome to Event Team! 🛡️</h2>
+            <p>Hello <b>${name}</b>,</p>
+            <p>You have been appointed as a <b>Gatekeeper</b> for our upcoming events.</p>
+            <p>Use the following credentials to access the scanner panel:</p>
+            <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #e2e8f0;">
+                <p style="margin: 0;"><b>Login ID:</b> ${email}</p>
+                <p style="margin: 5px 0 0 0;"><b>Password:</b> ${password}</p> 
             </div>
-        `;
+            <br>
+            <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" 
+               style="background: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+               Login to Duty
+            </a>
+        </div>
+    `;
 
-        await sendEmail({
-            email: user.email,
-            subject: "Gatekeeper Access Granted 🔐",
-            message: emailMessage
-        });
-    } catch (emailError) {
-        console.error("Staff Email Error:", emailError.message);
-    }
+    // 🔥 FIX: Non-blocking email, website nahi atkegi
+    sendEmail({
+        email: user.email,
+        subject: "Gatekeeper Access Granted 🔐",
+        message: emailMessage
+    }).catch(err => console.error("Gatekeeper Email Error:", err.message));
 
     return res.status(201).json({
       _id: user._id,
@@ -123,13 +118,12 @@ const getGatekeepers = async (req, res) => {
 };
 
 // ==========================================
-// 🔥 NEW: UPDATE GATEKEEPER DUTIES (FIXED & SECURE)
+// 3. UPDATE GATEKEEPER DUTIES 
 // ==========================================
 const updateGatekeeper = async (req, res) => {
     try {
         const { assignedEventIds } = req.body;
         
-        // 🔒 SECURITY LAYER 1
         if (assignedEventIds && assignedEventIds.length > 0) {
             const validEvents = await Event.find({ 
                 _id: { $in: assignedEventIds }, 
@@ -140,7 +134,6 @@ const updateGatekeeper = async (req, res) => {
             }
         }
 
-        // 🔒 THE FIX: Using findOneAndUpdate to bypass the 'next is not a function' save() bug
         const gatekeeper = await User.findOneAndUpdate(
             { _id: req.params.id, role: 'gatekeeper' }, 
             { $set: { assignedEvents: assignedEventIds } },
@@ -159,7 +152,7 @@ const updateGatekeeper = async (req, res) => {
 };
 
 // ==========================================
-// 🔥 NEW: REMOVE GATEKEEPER
+// 4. REMOVE GATEKEEPER
 // ==========================================
 const deleteGatekeeper = async (req, res) => {
     try {
@@ -171,7 +164,7 @@ const deleteGatekeeper = async (req, res) => {
 };
 
 // ==========================================
-// 3. REGISTER USER 
+// 5. REGISTER USER 
 // ==========================================
 const registerUser = async (req, res) => {
   try {
@@ -213,23 +206,21 @@ const registerUser = async (req, res) => {
         const qrCodeDataUrl = await QRCode.toDataURL(user._id.toString());
         const base64Data = qrCodeDataUrl.split(',')[1];
 
-        try {
-          await sendEmail({
+        // 🔥 FIX: Non-blocking mail
+        sendEmail({
             email: user.email,
             subject: "Your Event Pass 🎟️",
             message: `<h1>Welcome, ${user.name}!</h1><p>Your ID-based QR code is attached.</p>`,
-            attachments: [{ filename: 'id-qr.png', content: base64Data, encoding: 'base64' }]
-          });
-        } catch (err) { console.log("ID Email Error"); }
+            attachments: [{ filename: 'id-qr.png', content: base64Data }]
+        }).catch(err => console.log("ID Email Error"));
 
       } else {
-        try {
-           sendEmail({
+        // 🔥 FIX: Non-blocking mail
+        sendEmail({
             email: user.email,
             subject: "Welcome to Eventora! 🚀",
             message: `<p>Hi ${user.name}, your account is ready. Start joining events now!</p>`
-          });
-        } catch (err) { console.log("Welcome Email Error"); }
+        }).catch(err => console.log("Welcome Email Error"));
       }
     }
 
@@ -247,7 +238,7 @@ const registerUser = async (req, res) => {
 };
 
 // ==========================================
-// 4. LOGIN USER
+// 6. LOGIN USER
 // ==========================================
 const loginUser = async (req, res) => {
   try {
@@ -282,7 +273,7 @@ const loginUser = async (req, res) => {
 };
 
 // ==========================================
-// 5. FORGOT & RESET PASSWORD
+// 7. FORGOT & RESET PASSWORD
 // ==========================================
 const forgotPassword = async (req, res) => {
   try {
@@ -293,7 +284,6 @@ const forgotPassword = async (req, res) => {
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     
-    // Safely update without triggering other validations
     await User.findByIdAndUpdate(user._id, { 
         otp: otp, 
         otpExpire: Date.now() + 10 * 60 * 1000 
@@ -329,7 +319,7 @@ const resetPassword = async (req, res) => {
     user.password = newPassword; 
     user.otp = undefined;
     user.otpExpire = undefined;
-    await user.save(); // Here it's fine because we are explicitly setting the password
+    await user.save(); 
 
     return res.status(200).json({ success: true, message: "Password updated successfully!" });
   } catch (error) {
@@ -338,7 +328,7 @@ const resetPassword = async (req, res) => {
 };
 
 // ==========================================
-// 🔥 6. UPDATE PASSWORD (FROM PROFILE)
+// 8. UPDATE PASSWORD (FROM PROFILE)
 // ==========================================
 const updatePassword = async (req, res) => {
   try {
@@ -359,9 +349,6 @@ const updatePassword = async (req, res) => {
   }
 };
 
-// ==========================================
-// HELPERS
-// ==========================================
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET || 'secret123', { expiresIn: '30d' });
 };

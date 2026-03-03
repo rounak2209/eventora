@@ -15,16 +15,13 @@ const bookTicket = async (req, res) => {
         const { eventId } = req.body;
         const userId = req.user._id;
 
-        // 1. Check Event Existence
         const event = await Event.findById(eventId);
         if (!event) return res.status(404).json({ message: "Event not found" });
 
         let finalUsersList = [];
         let team = null;
 
-        // --- CASE A: TEAM EVENT ---
         if (event.isTeamEvent) {
-            // Find Team where user is either Leader or Member
             team = await Team.findOne({
                 event: eventId,
                 $or: [{ leader: userId }, { members: userId }]
@@ -34,11 +31,9 @@ const bookTicket = async (req, res) => {
                 return res.status(400).json({ message: "You need a team to register for this event." });
             }
 
-            // Get all member IDs and remove duplicates
             let allMemberIds = [team.leader, ...team.members];
             let uniqueIds = [...new Set(allMemberIds.map(id => id.toString()))];
 
-            // CRITICAL: Clear any previous partial/bad registrations for this team
             await Registration.deleteMany({
                 event: eventId,
                 user: { $in: uniqueIds }
@@ -46,7 +41,6 @@ const bookTicket = async (req, res) => {
 
             finalUsersList = await User.find({ _id: { $in: uniqueIds } });
         } 
-        // --- CASE B: SOLO EVENT ---
         else {
             await Registration.deleteOne({ event: eventId, user: userId });
             finalUsersList = [req.user];
@@ -54,10 +48,8 @@ const bookTicket = async (req, res) => {
 
         const results = [];
 
-        // 2. Loop through all members (or solo user) to generate tickets
         for (const member of finalUsersList) {
             try {
-                // Generate Standardized JSON QR Payload (Matches Frontend Modal)
                 const qrPayload = JSON.stringify({
                     userId: member._id.toString(),
                     eventId: eventId.toString(),
@@ -66,8 +58,8 @@ const bookTicket = async (req, res) => {
                 });
 
                 const qrImage = await QRCode.toDataURL(qrPayload);
+                const qrBase64 = qrImage.split("base64,")[1];
 
-                // Create Database Entry
                 const ticket = await Registration.create({
                     user: member._id,
                     event: eventId,
@@ -77,12 +69,11 @@ const bookTicket = async (req, res) => {
                     hasAttended: false
                 });
 
-                // Update Event Participants list for Stats
                 if (!event.participants.includes(member._id)) {
                     event.participants.push(member._id);
                 }
 
-                // 3. Send Professional Confirmation Email
+                // 🔥 FIX: Embed QR code safely using Data URI syntax 
                 const emailTemplate = `
                     <div style="font-family: sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 15px; max-width: 500px;">
                         <h2 style="color: #4f46e5;">Registration Confirmed! 🎉</h2>
@@ -93,7 +84,7 @@ const bookTicket = async (req, res) => {
                             <p style="margin: 0;"><b>Ticket ID:</b> ${ticket._id.toString().slice(-8).toUpperCase()}</p>
                         </div>
                         <p style="text-align: center;">
-                            <img src="cid:qr" width="200" style="border: 4px solid #fff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-radius: 8px;" />
+                            <img src="data:image/png;base64,${qrBase64}" width="200" style="border: 4px solid #fff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-radius: 8px;" />
                         </p>
                         <p style="font-size: 12px; color: #64748b;">Please show this QR code at the entrance.</p>
                     </div>
@@ -103,12 +94,7 @@ const bookTicket = async (req, res) => {
                     email: member.email,
                     subject: `🎟️ Entry Pass: ${event.title}`,
                     message: emailTemplate,
-                    attachments: [{
-                        filename: 'ticket-qr.png',
-                        content: qrImage.split("base64,")[1],
-                        encoding: 'base64',
-                        cid: 'qr'
-                    }]
+                    attachments: [{ filename: 'ticket-qr.png', content: qrBase64 }]
                 });
 
                 results.push({ email: member.email, status: "Success" });
@@ -128,12 +114,9 @@ const bookTicket = async (req, res) => {
     }
 };
 
-// ============================================================
-// 2. VERIFY TICKET (Scanner Logic)
-// ============================================================
 const verifyTicket = async (req, res) => {
     try {
-        const { qrData, eventId } = req.body; // eventId is from Gatekeeper's selected duty
+        const { qrData, eventId } = req.body; 
 
         if (!qrData || !eventId) {
             return res.status(400).json({ message: "Invalid scan: Missing data." });
@@ -142,7 +125,6 @@ const verifyTicket = async (req, res) => {
         let ticket = null;
         const cleanQR = qrData.trim();
 
-        // --- STRATEGY 1: JSON PAYLOAD MATCH (New System) ---
         try {
             const parsed = JSON.parse(cleanQR);
             if (parsed.userId) {
@@ -152,39 +134,32 @@ const verifyTicket = async (req, res) => {
                 }).populate('user').populate('event');
             }
         } catch (e) {
-            // Not a JSON, fallback to other strategies
         }
 
-        // --- STRATEGY 2: DIRECT ID MATCH (Legacy Support) ---
         if (!ticket && mongoose.Types.ObjectId.isValid(cleanQR)) {
             ticket = await Registration.findById(cleanQR).populate('user').populate('event');
         }
 
-        // --- STRATEGY 3: RAW STRING MATCH ---
         if (!ticket) {
             ticket = await Registration.findOne({ qrCodeData: cleanQR }).populate('user').populate('event');
         }
 
-        // --- VALIDATION CHECKS ---
         if (!ticket) {
             return res.status(404).json({ message: "❌ Invalid Ticket! No record found." });
         }
 
-        // 1. Wrong Event Check
         if (ticket.event._id.toString() !== eventId.toString()) {
             return res.status(403).json({ 
                 message: `⛔ Wrong Event! This ticket is for "${ticket.event.title}"` 
             });
         }
 
-        // 2. Double Entry Check
         if (ticket.hasAttended) {
             return res.status(400).json({ 
                 message: `⚠️ ALREADY SCANNED at ${new Date(ticket.checkInTime).toLocaleTimeString()}` 
             });
         }
 
-        // --- GRANT ACCESS ---
         ticket.hasAttended = true;
         ticket.checkInTime = Date.now();
         await ticket.save();

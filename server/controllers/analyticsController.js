@@ -8,32 +8,25 @@ const sendEmail = require('../utils/sendEmail');
 // 1. HELPERS (PDF GRAPHICS & CONTENT) 🎨
 // ==========================================
 
-// Bar chart draw karne ka function (No changes to visual logic)
 const drawBarChart = (doc, label, count, total, x, y, color) => {
     const barWidth = 150; 
     const percentage = total > 0 ? (count / total) : 0;
     const actualWidth = barWidth * percentage;
 
-    // Label
     doc.fontSize(10).fillColor('black').text(label, x, y);
-    // Background Bar
     doc.rect(x + 60, y - 2, barWidth, 10).fillColor('#f0f0f0').fill();
-    // Foreground Bar (Color)
     if (actualWidth > 0) {
         doc.rect(x + 60, y - 2, actualWidth, 10).fillColor(color).fill();
     }
-    // Count
     doc.fillColor('black').text(`${count}`, x + 60 + barWidth + 10, y);
 };
 
 const generatePDFContent = (doc, event, totalCount, presentCount, absentCount, genderStats, yearStats, deptStats, registrations) => {
-    // 1. Header
     doc.fillColor('#4F46E5').fontSize(22).text('EVENT ANALYTICS REPORT', { align: 'center' });
     doc.fontSize(14).fillColor('#1F2937').text(event ? event.title : 'General Overview', { align: 'center' });
     doc.fontSize(10).fillColor('#6B7280').text(`Generated on: ${new Date().toLocaleString()}`, { align: 'center' });
     doc.moveDown(2);
 
-    // 2. Attendance Summary Box
     doc.fontSize(12).fillColor('#111827').text('1. ATTENDANCE SUMMARY', { underline: true });
     doc.moveDown(0.5);
     doc.rect(50, 140, 500, 45).fillColor('#F9FAFB').strokeColor('#E5E7EB').fillAndStroke();
@@ -44,10 +37,8 @@ const generatePDFContent = (doc, event, totalCount, presentCount, absentCount, g
     doc.text(`Total Absent: ${absentCount}`, 400, 158);
     doc.moveDown(4);
 
-    // 3. Demographic Graphs
     let yPos = 230;
     
-    // Gender Breakdown
     doc.fontSize(12).fillColor('#4F46E5').text('2. GENDER DISTRIBUTION', 50, yPos);
     yPos += 25;
     Object.keys(genderStats).forEach(key => {
@@ -55,16 +46,14 @@ const generatePDFContent = (doc, event, totalCount, presentCount, absentCount, g
         yPos += 20;
     });
 
-    // Department Breakdown
     yPos += 30;
     doc.fontSize(12).fillColor('#4F46E5').text('3. DEPARTMENT-WISE PARTICIPATION', 50, yPos);
     yPos += 25;
-    Object.keys(deptStats).slice(0, 10).forEach(key => { // Top 10 depts
+    Object.keys(deptStats).slice(0, 10).forEach(key => { 
         drawBarChart(doc, key, deptStats[key], totalCount, 50, yPos, '#F59E0B');
         yPos += 20;
     });
 
-    // Year Breakdown
     yPos += 30;
     doc.fontSize(12).fillColor('#4F46E5').text('4. YEAR-WISE BREAKDOWN', 50, yPos);
     yPos += 25;
@@ -73,7 +62,6 @@ const generatePDFContent = (doc, event, totalCount, presentCount, absentCount, g
         yPos += 20;
     });
 
-    // 4. Detailed Attendee List (New Page)
     doc.addPage();
     doc.fontSize(16).fillColor('#111827').text('DETAILED ATTENDEE LOG', { align: 'center' });
     doc.moveDown();
@@ -111,7 +99,7 @@ const generatePDFContent = (doc, event, totalCount, presentCount, absentCount, g
 };
 
 // ==========================================
-// 2. HELPER: CALCULATE STATS (Common Logic)
+// 2. HELPER: CALCULATE STATS
 // ==========================================
 async function calculateEventStats(eventId) {
     let query = {};
@@ -121,7 +109,7 @@ async function calculateEventStats(eventId) {
 
     const registrations = await Registration.find(query)
       .populate('user', 'name email department year gender')
-      .lean(); // Faster lookup for analytics
+      .lean();
 
     const event = (eventId && eventId !== 'all') 
         ? await Event.findById(eventId).lean() 
@@ -138,16 +126,13 @@ async function calculateEventStats(eventId) {
     registrations.forEach(reg => {
         if (!reg.user) return;
 
-        // Gender Mapping
         const g = reg.user.gender || 'Other';
         if (genderStats[g] !== undefined) genderStats[g]++;
         else genderStats.Other++;
         
-        // Year Mapping
         const y = reg.user.year || 'N/A';
         yearStats[y] = (yearStats[y] || 0) + 1;
 
-        // Dept Mapping
         const d = reg.user.department || 'General';
         deptStats[d] = (deptStats[d] || 0) + 1;
     });
@@ -159,7 +144,6 @@ async function calculateEventStats(eventId) {
 // 3. API CONTROLLERS
 // ==========================================
 
-// @desc    JSON Stats for Dashboard Charts
 const getEventAnalytics = async (req, res) => {
     try {
         const { eventId } = req.query;
@@ -181,7 +165,6 @@ const getEventAnalytics = async (req, res) => {
     }
 };
 
-// @desc    Stream PDF Report
 const downloadAnalyticsReport = async (req, res) => {
     try {
         const { eventId } = req.query;
@@ -206,7 +189,6 @@ const downloadAnalyticsReport = async (req, res) => {
     }
 };
 
-// @desc    Email PDF Report to Organizer
 const emailAnalyticsReport = async (req, res) => {
     try {
         const { eventId } = req.body;
@@ -232,8 +214,9 @@ const emailAnalyticsReport = async (req, res) => {
                 });
                 return res.status(200).json({ success: true, message: "Report has been emailed! 📧" });
             } catch (err) {
-                console.error("Email Error:", err);
-                return res.status(500).json({ message: "Failed to send report via email." });
+                console.error("Analytics Email Error:", err);
+                // Fix: Response object send error correctly
+                if (!res.headersSent) return res.status(500).json({ message: "Failed to send report via email." });
             }
         });
 
@@ -245,7 +228,7 @@ const emailAnalyticsReport = async (req, res) => {
         doc.end();
 
     } catch (error) {
-        return res.status(500).json({ message: error.message });
+        if (!res.headersSent) return res.status(500).json({ message: error.message });
     }
 };
 

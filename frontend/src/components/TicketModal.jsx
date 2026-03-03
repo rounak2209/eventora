@@ -19,10 +19,8 @@ const TicketModal = ({ isOpen, onClose, ticketData }) => {
   });
 
   return (
-    // 🔥 FIX: 'items-start' aur 'pt-24' (Padding Top) laga diya hai. Ab ye zindagi mein upar nahi ghusega!
     <div className="fixed inset-0 bg-black/90 z-[999] backdrop-blur-xl overflow-y-auto flex justify-center items-start pt-24 pb-12 px-4">
       
-      {/* Box ke margin ko 'mb-auto' kiya taaki naturally set ho */}
       <div className="w-full max-w-[320px] mb-auto flex flex-col bg-[#0a0a0a]/95 backdrop-blur-3xl saturate-150 rounded-[2rem] overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.9)] border border-white/10 relative animate-in zoom-in-95 duration-300">
         
         {/* Glow Effects */}
@@ -70,13 +68,14 @@ const TicketModal = ({ isOpen, onClose, ticketData }) => {
 
             {/* QR Section */}
             <div className="flex flex-col items-center mt-1">
-                <div className="bg-white p-2.5 rounded-2xl shadow-[0_0_25px_rgba(255,255,255,0.15)] mb-3 relative z-10">
+                {/* 🔥 FIX: Padding badha di aur 'includeMargin={true}' kar diya taaki scanner ko proper white boundary mile */}
+                <div className="bg-white p-3.5 rounded-2xl shadow-[0_0_25px_rgba(255,255,255,0.15)] mb-3 relative z-10 flex justify-center items-center">
                     <QRCodeCanvas 
                         value={qrPayload} 
-                        size={130}
+                        size={140}
                         level={"H"} 
-                        includeMargin={false}
-                        className="rounded-lg"
+                        includeMargin={true} // 👈 Masterstroke: Ye scanning fail nahi hone dega
+                        // className="rounded-lg" // isko hata diya kyunki ye white border ko kaat raha tha
                     />
                 </div>
                 <div className="flex items-center gap-1.5 text-green-400 bg-green-500/10 border border-green-500/20 px-3 py-1.5 rounded-full font-black text-[9px] uppercase tracking-wider shadow-sm relative z-10">

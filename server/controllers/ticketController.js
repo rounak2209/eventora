@@ -73,7 +73,7 @@ const bookTicket = async (req, res) => {
                     event.participants.push(member._id);
                 }
 
-                // 🔥 FIX: Embed QR code safely using Data URI syntax 
+// 🔥 FIX: 'data:image' hata kar 'cid:ticket-qr.png' kar diya 
                 const emailTemplate = `
                     <div style="font-family: sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 15px; max-width: 500px;">
                         <h2 style="color: #4f46e5;">Registration Confirmed! 🎉</h2>
@@ -84,7 +84,7 @@ const bookTicket = async (req, res) => {
                             <p style="margin: 0;"><b>Ticket ID:</b> ${ticket._id.toString().slice(-8).toUpperCase()}</p>
                         </div>
                         <p style="text-align: center;">
-                            <img src="data:image/png;base64,${qrBase64}" width="200" style="border: 4px solid #fff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-radius: 8px;" />
+                            <img src="cid:ticket-qr.png" width="200" style="border: 4px solid #fff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-radius: 8px;" alt="QR Code" />
                         </p>
                         <p style="font-size: 12px; color: #64748b;">Please show this QR code at the entrance.</p>
                     </div>
@@ -94,7 +94,7 @@ const bookTicket = async (req, res) => {
                     email: member.email,
                     subject: `🎟️ Entry Pass: ${event.title}`,
                     message: emailTemplate,
-                    attachments: [{ filename: 'ticket-qr.png', content: qrBase64 }]
+                    attachments: [{ filename: 'ticket-qr.png', content: qrBase64 }] // Ye naam aur cid ka naam match hona zaroori hai
                 });
 
                 results.push({ email: member.email, status: "Success" });

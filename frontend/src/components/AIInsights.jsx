@@ -26,7 +26,6 @@ const AIInsights = ({ eventId }) => {
     } catch (error) {
       console.error("Summary Error:", error);
       
-
       if (error.response && error.response.status === 429) {
           setSummary('⏳ AI is resting! You are asking too fast. Please wait 1 minute before generating again.');
       } else {
@@ -57,7 +56,6 @@ const AIInsights = ({ eventId }) => {
     } catch (error) {
       console.error("Chat Error:", error);
       
-
       if (error.response && error.response.status === 429) {
           setChatHistory([...newChat, { role: 'ai', text: '⏳ AI needs a breather! Too many requests. Please wait 1 minute.' }]);
       } else {
@@ -85,7 +83,7 @@ const AIInsights = ({ eventId }) => {
         <button 
           onClick={fetchSummary}
           disabled={isSummaryLoading}
-          className="bg-orange-500/10 border border-orange-500/30 text-orange-400 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-500/20 transition-all active:scale-95 shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="bg-orange-500/10 border border-orange-500/30 text-orange-400 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-500/20 transition-all active:scale-95 shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed w-full md:w-auto justify-center"
         >
           {isSummaryLoading ? (
              <><Loader2 size={14} className="animate-spin" /> Analyzing...</>
@@ -126,7 +124,7 @@ const AIInsights = ({ eventId }) => {
           <div className="space-y-4 mb-5 max-h-60 overflow-y-auto pr-2 dark-scroll">
             {chatHistory.map((chat, index) => (
               <div key={index} className={`flex ${chat.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`p-3.5 rounded-2xl max-w-[85%] text-xs font-medium leading-relaxed shadow-md ${
+                <div className={`p-3.5 rounded-2xl max-w-[85%] sm:max-w-[75%] text-xs font-medium leading-relaxed shadow-md ${
                   chat.role === 'user' 
                     ? 'bg-orange-500/20 border border-orange-500/30 text-orange-50 rounded-br-sm' 
                     : chat.text.includes('⏳') 
@@ -147,21 +145,21 @@ const AIInsights = ({ eventId }) => {
           </div>
         )}
 
-        {/* Chat Input */}
-        <form onSubmit={handleChatSubmit} className="flex gap-2">
+        {/* Chat Input - FIX APPLIED HERE */}
+        <form onSubmit={handleChatSubmit} className="flex gap-2 w-full items-center">
           <input 
             type="text" 
             value={chatQuery}
             onChange={(e) => setChatQuery(e.target.value)}
-            placeholder="E.g., What was the total revenue collected?" 
-            className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-orange-500/50 outline-none font-medium text-sm placeholder-gray-500 shadow-[inset_0_1px_3px_rgba(0,0,0,0.3)] transition-all"
+            placeholder="E.g., What was the total revenue?" 
+            className="flex-1 w-full min-w-0 bg-black/40 border border-white/10 rounded-xl px-3 sm:px-4 py-3 text-white focus:border-orange-500/50 outline-none font-medium text-xs sm:text-sm placeholder-gray-500 shadow-[inset_0_1px_3px_rgba(0,0,0,0.3)] transition-all"
           />
           <button 
             type="submit" 
             disabled={isChatLoading || !chatQuery.trim()}
-            className="bg-white/10 hover:bg-white/20 border border-white/10 text-white px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all flex items-center gap-2 active:scale-95"
+            className="shrink-0 bg-white/10 hover:bg-white/20 border border-white/10 text-white px-4 sm:px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all flex items-center gap-2 active:scale-95"
           >
-            Ask <Send size={14} className="text-orange-400" />
+            <span className="hidden sm:inline">Ask</span> <Send size={14} className="text-orange-400" />
           </button>
         </form>
       </div>

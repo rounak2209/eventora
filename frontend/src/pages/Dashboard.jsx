@@ -355,9 +355,6 @@ const Dashboard = () => {
                             <div className="relative z-20 p-6 w-full flex flex-col gap-4">
                                 <div>
                                     <h3 className="text-2xl font-black text-white leading-tight drop-shadow-md mb-0.5">{event.title}</h3>
-                                    <p className="text-gray-300/80 text-[11px] font-medium line-clamp-1">
-                                        {event.description || "Click card to view details."}
-                                    </p>
                                 </div>
                                 
                                 <div className="flex flex-wrap gap-2">

@@ -15,9 +15,8 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // ✅ Bas ye ek line! 
       // API call, token save, Toast message, aur Role-based Redirect...
-      // Ye sab tumhare AuthContext ke andar jo loginUser banaya h, wo khud kar lega.
+      // Ye sab mere AuthContext ke andar jo loginUser banaya h, wo khud kar lega.
       await loginUser(formData);
     } catch (error) {
       console.error(error);
@@ -26,14 +25,14 @@ const Login = () => {
   };
 
   return (
-    // 🔥 ROOT: bg-transparent let the background shine 100%
+
     <div className="min-h-screen bg-transparent flex justify-center items-center py-12 px-4 relative overflow-hidden font-sans text-gray-100 selection:bg-orange-500/30 z-10">
       
-      {/* Background Subtle Overlays (To make the glass pop) */}
+
       <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-orange-600/10 rounded-full blur-[120px] pointer-events-none -z-10"></div>
       <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px] pointer-events-none -z-10"></div>
 
-      {/* 🔥 CRYSTAL CLEAR GLASS CARD: Matches Register exactly */}
+      {/* CRYSTAL CLEAR GLASS CARD: Matches Register exactly */}
       <div className="w-full max-w-md bg-white/5 backdrop-blur-2xl border border-white/10 border-t-white/20 p-8 md:p-10 rounded-[2.5rem] shadow-[0_8px_32px_rgba(0,0,0,0.5)] relative z-10 animate-in fade-in zoom-in-95 duration-500">
         
         {/* Brand Logo / Header */}
@@ -56,7 +55,7 @@ const Login = () => {
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                     <Mail size={18} className="text-gray-400" />
                 </div>
-                {/* 🔥 EXPERT FIX: Added autofill hack here too */}
+                {/*Added autofill hack here too */}
                 <input
                   type="email"
                   className="w-full pl-11 pr-4 py-3.5 bg-black/20 border border-white/10 rounded-2xl text-white focus:ring-1 focus:ring-orange-500/50 focus:border-orange-500/50 outline-none transition-all placeholder-gray-500 shadow-[inset_0_1px_3px_rgba(0,0,0,0.3)]"
@@ -69,7 +68,7 @@ const Login = () => {
             </div>
           </div>
 
-          {/* Password */}
+
           <div>
             <label className="block text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1.5 ml-1">Secure Password</label>
             <div className="relative">
@@ -88,7 +87,7 @@ const Login = () => {
             </div>
           </div>
 
-          {/* Premium Transparent Amber Button */}
+
           <button 
             type="submit" 
             disabled={loading}

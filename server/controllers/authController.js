@@ -5,9 +5,9 @@ const sendEmail = require('../utils/sendEmail');
 const QRCode = require('qrcode'); 
 const bcrypt = require('bcryptjs');
 
-// ==========================================
-// 1. ADD GATEKEEPER (Smart Add by Organizer)
-// ==========================================
+
+// 1. ADD GATEKEEPER 
+
 const addGatekeeper = async (req, res) => {
   try {
     const { name, email, password, assignedEventIds } = req.body;
@@ -75,7 +75,6 @@ const addGatekeeper = async (req, res) => {
         </div>
     `;
 
-    // 🔥 FIX: Non-blocking email, website nahi atkegi
     sendEmail({
         email: user.email,
         subject: "Gatekeeper Access Granted 🔐",
@@ -95,9 +94,9 @@ const addGatekeeper = async (req, res) => {
   }
 };
 
-// ==========================================
+
 // 2. GET GATEKEEPERS LIST 
-// ==========================================
+
 const getGatekeepers = async (req, res) => {
     try {
         const organizerEvents = await Event.find({ organizer: req.user._id }).select('_id');
@@ -117,9 +116,9 @@ const getGatekeepers = async (req, res) => {
     }
 };
 
-// ==========================================
+
 // 3. UPDATE GATEKEEPER DUTIES 
-// ==========================================
+
 const updateGatekeeper = async (req, res) => {
     try {
         const { assignedEventIds } = req.body;
@@ -151,9 +150,9 @@ const updateGatekeeper = async (req, res) => {
     }
 };
 
-// ==========================================
+
 // 4. REMOVE GATEKEEPER
-// ==========================================
+
 const deleteGatekeeper = async (req, res) => {
     try {
         await User.findByIdAndDelete(req.params.id);
@@ -163,26 +162,48 @@ const deleteGatekeeper = async (req, res) => {
     }
 };
 
-// ==========================================
+
 // 5. REGISTER USER 
-// ==========================================
+
 const registerUser = async (req, res) => {
   try {
-    let { name, email, password, gender, department, year, role } = req.body;
+
+    let { name, email, password, gender, department, year, role, rollNumber, skills, bio } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
+    //  Role ke hisab se data filter karna
     if (role !== 'student') {
         gender = undefined;
         department = undefined;
         year = undefined;
+        rollNumber = undefined; // Organizer ko roll no ki zaroorat nahi
+        skills = [];
+        bio = "Event Organizer"; // Default bio for non-students
+    } else {
+        // Skills string ko array mein convert kar rhe hain agar comma-separated aayi hai
+        if (skills && typeof skills === 'string') {
+            skills = skills.split(',').map(s => s.trim()).filter(s => s);
+        } else if (!skills) {
+            skills = [];
+        }
+        
+        if (!bio || bio.trim() === "") {
+            bio = "Student at College"; 
+        }
     }
 
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({ message: 'Email already registered' });
+    }
+
+    // Image Check and URL extraction
+    let profilePicUrl = "";
+    if (req.file) {
+        profilePicUrl = req.file.secure_url || req.file.path;
     }
 
     const user = await User.create({
@@ -192,11 +213,13 @@ const registerUser = async (req, res) => {
       gender, 
       department, 
       year, 
+      rollNumber,   
+      skills,       
+      bio,          
       role: role || 'student',
       checkIn: false,
-      skills: [],
-      bio: role === 'student' ? "Student at College" : "Event Organizer",
-      isLookingForTeam: role === 'student' 
+      isLookingForTeam: role === 'student',
+      profilePic: profilePicUrl 
     });
 
     if (user) {
@@ -206,7 +229,6 @@ const registerUser = async (req, res) => {
         const qrCodeDataUrl = await QRCode.toDataURL(user._id.toString());
         const base64Data = qrCodeDataUrl.split(',')[1];
 
-        // 🔥 FIX: Non-blocking mail
         sendEmail({
             email: user.email,
             subject: "Your Event Pass 🎟️",
@@ -215,7 +237,6 @@ const registerUser = async (req, res) => {
         }).catch(err => console.log("ID Email Error"));
 
       } else {
-        // 🔥 FIX: Non-blocking mail
         sendEmail({
             email: user.email,
             subject: "Welcome to Eventora! 🚀",
@@ -229,6 +250,7 @@ const registerUser = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        profilePic: user.profilePic, 
         token: generateToken(user._id),
     });
 
@@ -237,9 +259,7 @@ const registerUser = async (req, res) => {
   }
 };
 
-// ==========================================
-// 6. LOGIN USER
-// ==========================================
+
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -256,12 +276,14 @@ const loginUser = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        profilePic: user.profilePic, 
         token: generateToken(user._id),
         user: { 
             id: user._id,
             name: user.name,
             role: user.role,
-            email: user.email
+            email: user.email,
+            profilePic: user.profilePic
         }
       });
     } else {
@@ -272,9 +294,7 @@ const loginUser = async (req, res) => {
   }
 };
 
-// ==========================================
-// 7. FORGOT & RESET PASSWORD
-// ==========================================
+
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -350,7 +370,7 @@ const updatePassword = async (req, res) => {
 };
 
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'secret123', { expiresIn: '30d' });
+  return jwt.sign({ id }, process.env.JWT_SECRET , { expiresIn: '30d' });
 };
 
 module.exports = { 

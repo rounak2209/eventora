@@ -2,11 +2,15 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { registerUser } from "../api"; 
 import { toast } from "react-hot-toast";
-import { User, Mail, Lock, UserCog, GraduationCap, Building2, Layout } from "lucide-react"; 
+import { User, Mail, Lock, UserCog, GraduationCap, Building2, Layout, Camera, Hash, BookOpen, PenTool } from "lucide-react"; // 🔥 Naye icons add kiye
 
 const Register = () => {
   const navigate = useNavigate(); 
   const [loading, setLoading] = useState(false); 
+  
+
+  const [profilePic, setProfilePic] = useState(null);
+  const [preview, setPreview] = useState(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -15,10 +19,13 @@ const Register = () => {
     gender: "",      
     department: "",  
     year: "",
-    role: "student"  
+    rollNumber: "",
+    skills: "",
+    bio: "",
+    role: "student"
   });
 
-  const { name, email, password, gender, department, year, role } = formData;
+  const { name, email, password, gender, department, year, rollNumber, skills, bio, role } = formData;
 
   const onChange = (e) => {
     setFormData((prevState) => ({
@@ -27,18 +34,28 @@ const Register = () => {
     }));
   };
 
+  // Handle File Upload Preview
+  const handleFileChange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+          setProfilePic(file);
+          setPreview(URL.createObjectURL(file));
+      }
+  };
+
   const onSubmit = async (e) => {
     e.preventDefault();
     
-    // Basic Validation
+
     if (password.length < 6) {
         toast.error("Password must be at least 6 characters");
         return;
     }
 
     if (role === 'student') {
-        if(!gender || !department || !year) {
-            toast.error("Please fill all fields");
+
+        if(!gender || !department || !year || !rollNumber) {
+            toast.error("Please fill all required student fields");
             return;
         }
     }
@@ -47,7 +64,27 @@ const Register = () => {
     const tid = toast.loading("Creating your account... Please wait ⏳");
 
     try {
-        const res = await registerUser(formData);
+        // Send data as FormData instead of plain JSON
+        const submitData = new FormData();
+        submitData.append("name", name);
+        submitData.append("email", email);
+        submitData.append("password", password);
+        submitData.append("role", role);
+        
+        if (role === 'student') {
+            submitData.append("gender", gender);
+            submitData.append("department", department);
+            submitData.append("year", year);
+            submitData.append("rollNumber", rollNumber);
+            submitData.append("skills", skills);
+            submitData.append("bio", bio);
+        }
+
+        if (profilePic) {
+            submitData.append("profilePic", profilePic);
+        }
+
+        const res = await registerUser(submitData);
         
         toast.success(res.data.message || "Registration Successful! Please Login.", { id: tid });
         navigate('/login'); 
@@ -61,17 +98,13 @@ const Register = () => {
   };
 
   return (
-    // 🔥 ROOT: bg-transparent let the background shine 100%
     <div className="min-h-screen bg-transparent flex justify-center items-center py-12 px-4 relative overflow-hidden font-sans text-gray-100 selection:bg-orange-500/30 z-10">
       
-      {/* 🔥 REMOVED THE bg-black/20 LAYER. Only subtle glows left! */}
       <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-orange-600/10 rounded-full blur-[120px] pointer-events-none -z-10"></div>
       <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px] pointer-events-none -z-10"></div>
 
-      {/* 🔥 CRYSTAL CLEAR GLASS CARD: Changed from black/50 to white/5 (Matches Dashboard perfectly) */}
       <div className="w-full max-w-lg bg-white/5 backdrop-blur-2xl border border-white/10 border-t-white/20 p-8 md:p-10 rounded-[2.5rem] shadow-[0_8px_32px_rgba(0,0,0,0.5)] relative z-10 animate-in fade-in zoom-in-95 duration-500">
         
-        {/* Brand Logo / Header */}
         <div className="flex flex-col items-center mb-8">
             <div className="bg-orange-500/10 border border-orange-500/30 p-3 rounded-2xl mb-4 shadow-[0_0_15px_rgba(245,158,11,0.15)]">
                 <Layout size={28} className="text-orange-400" />
@@ -83,7 +116,27 @@ const Register = () => {
         </div>
 
         <form onSubmit={onSubmit} className="space-y-5">
-          
+
+          {/* PROFILE PIC UPLOAD */}
+          <div className="flex justify-center mb-6">
+              <label className="relative group w-24 h-24 rounded-[1.5rem] bg-black/40 border border-dashed border-white/20 hover:border-orange-500/50 flex flex-col items-center justify-center overflow-hidden shadow-inner cursor-pointer transition-all">
+                  {preview ? (
+                      <>
+                          <img src={preview} alt="Profile Preview" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Camera size={20} className="text-white" />
+                          </div>
+                      </>
+                  ) : (
+                      <div className="flex flex-col items-center text-gray-500 group-hover:text-orange-400 transition-colors">
+                          <Camera size={24} />
+                          <span className="text-[8px] font-black uppercase tracking-widest mt-1">Add Photo</span>
+                      </div>
+                  )}
+                  <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+              </label>
+          </div>
+
           {/* Role Selection */}
           <div>
             <label className="block text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1.5 ml-1">I am registering as</label>
@@ -156,6 +209,7 @@ const Register = () => {
                     name="password"
                     value={password}
                     onChange={onChange}
+                    autoComplete="new-password"
                     className="w-full pl-11 pr-4 py-3.5 bg-black/20 border border-white/10 rounded-2xl text-white focus:ring-1 focus:ring-orange-500/50 focus:border-orange-500/50 outline-none transition-all placeholder-gray-500 shadow-[inset_0_1px_3px_rgba(0,0,0,0.3)]"
                     placeholder="••••••••"
                     required
@@ -164,9 +218,9 @@ const Register = () => {
             </div>
           </div>
 
-          {/* Conditional Rendering for Students */}
+          {/* CONDITIONAL RENDERING: Sirf Student ke liye extra details */}
           {role === 'student' && (
-            <div className="bg-black/20 border border-white/10 p-5 rounded-[1.5rem] mt-6 space-y-5 shadow-[inset_0_1px_3px_rgba(0,0,0,0.2)]">
+            <div className="bg-black/20 border border-white/10 p-5 rounded-[1.5rem] mt-6 space-y-5 shadow-[inset_0_1px_3px_rgba(0,0,0,0.2)] animate-in fade-in">
                 
                 {/* Gender & Year */}
                 <div className="flex flex-col sm:flex-row gap-5">
@@ -209,34 +263,90 @@ const Register = () => {
                     </div>
                 </div>
 
-                {/* Department */}
-                <div>
-                    <label className="block text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1.5 ml-1">Department</label>
-                    <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <Building2 size={14} className="text-gray-400" />
+                {/* Dept & Roll No */}
+                <div className="flex flex-col sm:flex-row gap-5">
+                    <div className="w-full sm:w-1/2">
+                        <label className="block text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1.5 ml-1">Department</label>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <Building2 size={14} className="text-gray-400" />
+                            </div>
+                            <select
+                                name="department"
+                                value={department}
+                                onChange={onChange}
+                                className="w-full pl-9 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-1 focus:ring-orange-500/50 outline-none transition-all appearance-none cursor-pointer"
+                                required
+                            >
+                                <option value="" className="bg-[#111113] text-gray-500">Select Dept</option>
+                                <option value="CSE" className="bg-[#111113] text-white">CSE</option>
+                                <option value="ECE" className="bg-[#111113] text-white">ECE</option>
+                                <option value="ME" className="bg-[#111113] text-white">ME</option>
+                                <option value="CE" className="bg-[#111113] text-white">CE</option>
+                                <option value="EE" className="bg-[#111113] text-white">EE</option>
+                                <option value="IT" className="bg-[#111113] text-white">IT</option>
+                            </select>
                         </div>
-                        <select
-                            name="department"
-                            value={department}
-                            onChange={onChange}
-                            className="w-full pl-9 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-1 focus:ring-orange-500/50 outline-none transition-all appearance-none cursor-pointer"
-                            required
-                        >
-                            <option value="" className="bg-[#111113] text-gray-500">Select Department</option>
-                            <option value="CSE" className="bg-[#111113] text-white">CSE</option>
-                            <option value="ECE" className="bg-[#111113] text-white">ECE</option>
-                            <option value="ME" className="bg-[#111113] text-white">ME</option>
-                            <option value="CE" className="bg-[#111113] text-white">CE</option>
-                            <option value="EE" className="bg-[#111113] text-white">EE</option>
-                            <option value="IT" className="bg-[#111113] text-white">IT</option>
-                        </select>
+                    </div>
+
+                    <div className="w-full sm:w-1/2">
+                        <label className="block text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1.5 ml-1">Roll Number</label>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <Hash size={14} className="text-gray-400" />
+                            </div>
+                            <input
+                                type="text"
+                                name="rollNumber"
+                                value={rollNumber}
+                                onChange={onChange}
+                                className="w-full pl-9 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-1 focus:ring-orange-500/50 outline-none transition-all placeholder-gray-500 shadow-[inset_0_1px_3px_rgba(0,0,0,0.3)]"
+                                placeholder="e.g. 12345"
+                                required
+                            />
+                        </div>
                     </div>
                 </div>
+
+                {/* Skills */}
+                <div>
+                    <label className="block text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1.5 ml-1">Top Skills (Optional)</label>
+                    <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <BookOpen size={14} className="text-gray-400" />
+                        </div>
+                        <input
+                            type="text"
+                            name="skills"
+                            value={skills}
+                            onChange={onChange}
+                            className="w-full pl-9 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-1 focus:ring-orange-500/50 outline-none transition-all placeholder-gray-500 shadow-[inset_0_1px_3px_rgba(0,0,0,0.3)]"
+                            placeholder="React, UI Design, Video Editing (comma separated)"
+                        />
+                    </div>
+                </div>
+
+                {/* Bio */}
+                <div>
+                    <label className="block text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1.5 ml-1">Short Bio (Optional)</label>
+                    <div className="relative">
+                        <div className="absolute top-3 left-3 pointer-events-none">
+                            <PenTool size={14} className="text-gray-400" />
+                        </div>
+                        <textarea
+                            name="bio"
+                            value={bio}
+                            onChange={onChange}
+                            rows="2"
+                            className="w-full pl-9 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:ring-1 focus:ring-orange-500/50 outline-none transition-all placeholder-gray-500 resize-none shadow-[inset_0_1px_3px_rgba(0,0,0,0.3)]"
+                            placeholder="I'm a developer looking for a hackathon team..."
+                        ></textarea>
+                    </div>
+                </div>
+
             </div>
           )}
 
-          {/* Premium Transparent Amber Button */}
           <button
             type="submit"
             disabled={loading}

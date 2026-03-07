@@ -5,7 +5,7 @@ const messageSchema = new mongoose.Schema({
   // Recipient can be a User ID (for 1-on-1) or Team ID (for Group Chat)
   recipient: { type: mongoose.Schema.Types.ObjectId, required: true }, 
   content: { type: String, required: true },
-  isGroup: { type: Boolean, default: false }, // 🔥 New Field for Group Chat
+  isGroup: { type: Boolean, default: false }, 
   read: { type: Boolean, default: false },
   timestamp: { type: Date, default: Date.now }
 });

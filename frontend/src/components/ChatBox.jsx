@@ -100,8 +100,7 @@ const ChatBox = ({ recipientId, recipientName, onClose, isGroup = false }) => {
     };
 
     return (
-        // 🔥 EXPERT BUG FIX: Added `h-[28rem]` to permanently LOCK the outer box height.
-        // Ye box ab kisi bhi haal mein stretch nahi hoga!
+
         <div className="fixed bottom-4 right-4 w-80 md:w-96 h-[28rem] bg-black/60 backdrop-blur-3xl saturate-150 border border-white/10 border-t-white/20 border-l-white/20 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5">
             
             {/* Header */}
@@ -122,7 +121,7 @@ const ChatBox = ({ recipientId, recipientName, onClose, isGroup = false }) => {
                 </button>
             </div>
 
-            {/* 🔥 EXPERT BUG FIX: flex-1 ensures it fills space, overflow-y-auto enables scroll. */}
+
             <div className="flex-1 p-4 overflow-y-auto bg-transparent flex flex-col gap-3 custom-scrollbar">
                 {loading ? (
                     <div className="flex justify-center mt-10"><Loader2 className="animate-spin text-indigo-400" size={24}/></div>

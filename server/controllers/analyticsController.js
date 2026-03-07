@@ -4,9 +4,9 @@ const User = require('../models/User');
 const PDFDocument = require('pdfkit');
 const sendEmail = require('../utils/sendEmail');
 
-// ==========================================
-// 1. HELPERS (PDF GRAPHICS & CONTENT) 🎨
-// ==========================================
+
+// 1. HELPERS (PDF GRAPHICS & CONTENT) 
+
 
 const drawBarChart = (doc, label, count, total, x, y, color) => {
     const barWidth = 150; 
@@ -27,6 +27,7 @@ const generatePDFContent = (doc, event, totalCount, presentCount, absentCount, g
     doc.fontSize(10).fillColor('#6B7280').text(`Generated on: ${new Date().toLocaleString()}`, { align: 'center' });
     doc.moveDown(2);
 
+
     doc.fontSize(12).fillColor('#111827').text('1. ATTENDANCE SUMMARY', { underline: true });
     doc.moveDown(0.5);
     doc.rect(50, 140, 500, 45).fillColor('#F9FAFB').strokeColor('#E5E7EB').fillAndStroke();
@@ -35,9 +36,8 @@ const generatePDFContent = (doc, event, totalCount, presentCount, absentCount, g
     doc.text(`Total Registered: ${totalCount}`, 70, 158);
     doc.text(`Total Present: ${presentCount}`, 220, 158);
     doc.text(`Total Absent: ${absentCount}`, 400, 158);
-    doc.moveDown(4);
-
-    let yPos = 230;
+    
+    let yPos = 230; // Original position for Graph 1
     
     doc.fontSize(12).fillColor('#4F46E5').text('2. GENDER DISTRIBUTION', 50, yPos);
     yPos += 25;
@@ -62,16 +62,32 @@ const generatePDFContent = (doc, event, totalCount, presentCount, absentCount, g
         yPos += 20;
     });
 
+    yPos += 30;
+    doc.fontSize(12).fillColor('#4F46E5').text('5. REVENUE SUMMARY', 50, yPos);
+    yPos += 20;
+    
+    const ticketPrice = event && event.price ? event.price : 0;
+    const totalRevenue = totalCount * ticketPrice;
+    
+    doc.rect(50, yPos, 500, 45).fillColor('#F9FAFB').strokeColor('#E5E7EB').fillAndStroke();
+    doc.font('Helvetica-Bold').fillColor('#059669').fontSize(12).text(`Total Revenue Collected: Rs. ${totalRevenue}`, 70, yPos + 16);
+    doc.font('Helvetica'); 
+
+
     doc.addPage();
     doc.fontSize(16).fillColor('#111827').text('DETAILED ATTENDEE LOG', { align: 'center' });
     doc.moveDown();
 
     const tableTop = 100;
     doc.fontSize(10).font('Helvetica-Bold').fillColor('#374151');
+    
+
     doc.text('Participant Name', 50, tableTop);
-    doc.text('Dept', 210, tableTop);
-    doc.text('Year', 320, tableTop);
-    doc.text('Status', 460, tableTop);
+    doc.text('Dept', 200, tableTop);
+    doc.text('Year', 280, tableTop);
+    doc.text('Status', 340, tableTop);
+    doc.text('Check-in Time', 420, tableTop);
+    
     doc.moveTo(50, tableTop + 15).lineTo(550, tableTop + 15).strokeColor('#D1D5DB').stroke();
 
     let rowY = tableTop + 25;
@@ -84,23 +100,35 @@ const generatePDFContent = (doc, event, totalCount, presentCount, absentCount, g
         const userDept = reg.user?.department || 'N/A';
         const userYear = reg.user?.year || '-';
 
-        doc.fillColor('#111827').text(userName, 50, rowY, { width: 150 });
-        doc.text(userDept, 210, rowY, { width: 100 });
-        doc.text(userYear, 320, rowY);
+
+        doc.fillColor('#111827').text(userName, 50, rowY, { width: 140, height: 15, lineBreak: false });
+        doc.text(userDept, 200, rowY, { width: 70, height: 15, lineBreak: false });
+        doc.text(userYear, 280, rowY);
         
         if (reg.hasAttended) {
-            doc.fillColor('#059669').text('PRESENT', 460, rowY);
+            doc.fillColor('#059669').text('PRESENT', 340, rowY);
+            
+
+            let timeStr = 'N/A';
+            if (reg.checkInTime) {
+                const dateObj = new Date(reg.checkInTime);
+                timeStr = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ', ' + 
+                          dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            }
+            doc.fillColor('#6B7280').text(timeStr, 420, rowY, { width: 130 });
+
         } else {
-            doc.fillColor('#DC2626').text('ABSENT', 460, rowY);
+            doc.fillColor('#DC2626').text('ABSENT', 340, rowY);
+            doc.fillColor('#6B7280').text('-', 420, rowY);
         }
         
         rowY += 20;
     });
 };
 
-// ==========================================
+
 // 2. HELPER: CALCULATE STATS
-// ==========================================
+
 async function calculateEventStats(eventId) {
     let query = {};
     if (eventId && eventId !== 'all') {
@@ -113,7 +141,7 @@ async function calculateEventStats(eventId) {
 
     const event = (eventId && eventId !== 'all') 
         ? await Event.findById(eventId).lean() 
-        : { title: "Consolidated Events Analytics" };
+        : { title: "Consolidated Events Analytics", price: 0 };
 
     const totalCount = registrations.length;
     const presentCount = registrations.filter(r => r.hasAttended).length;
@@ -140,9 +168,9 @@ async function calculateEventStats(eventId) {
     return { event, totalCount, presentCount, absentCount, genderStats, yearStats, deptStats, registrations };
 }
 
-// ==========================================
+
 // 3. API CONTROLLERS
-// ==========================================
+
 
 const getEventAnalytics = async (req, res) => {
     try {
@@ -215,7 +243,6 @@ const emailAnalyticsReport = async (req, res) => {
                 return res.status(200).json({ success: true, message: "Report has been emailed! 📧" });
             } catch (err) {
                 console.error("Analytics Email Error:", err);
-                // Fix: Response object send error correctly
                 if (!res.headersSent) return res.status(500).json({ message: "Failed to send report via email." });
             }
         });

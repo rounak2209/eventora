@@ -4,7 +4,7 @@ import { Calendar, Users, Shield, Zap, ArrowRight, CheckCircle, Layout, Github, 
 
 const Home = () => {
   return (
-    // 🔥 Added w-full max-w-[100vw] to strictly prevent any mobile horizontal scroll leakage
+
     <div className="relative w-full max-w-[100vw] min-h-screen bg-transparent text-gray-100 font-sans selection:bg-orange-500/30 overflow-x-hidden">
       
       {/* 🚀 HERO SECTION (Glassy & Immersive) */}
@@ -27,7 +27,7 @@ const Home = () => {
             Manage Events Like a <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-500 drop-shadow-none">Pro</span> with Eventora.
           </h1>
           
-          {/* 🔥 RESPONSIVE TEXT: Smaller base text on mobile */}
+
           <p className="text-base sm:text-lg md:text-xl text-gray-200 mb-10 md:mb-12 leading-relaxed max-w-3xl mx-auto font-medium drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] px-4">
             Team formation, real-time QR scanning, and automated certificates—all in one place. 
             Elevate your campus events digitally without the hassle.
@@ -44,7 +44,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* 🛠️ FEATURES SECTION (Responsive Grid & Padding) */}
+      {/* FEATURES SECTION (Responsive Grid & Padding) */}
       <section className="py-12 md:py-24 relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 md:gap-8">
@@ -83,7 +83,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* 📊 TRUST STATS (Responsive Flex & Grid) */}
+      {/* TRUST STATS (Responsive Flex & Grid) */}
       <section className="py-10 md:py-12 mb-20 md:mb-32 relative z-10 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto">
           <div className="bg-black/60 backdrop-blur-3xl saturate-150 border border-white/10 rounded-[2rem] md:rounded-[2.5rem] p-8 md:p-14 flex flex-col md:flex-row justify-between items-center gap-10 md:gap-12 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
@@ -110,7 +110,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* 🏁 FOOTER (Mobile Optimized Stack) */}
+      {/* FOOTER (Mobile Optimized Stack) */}
       <footer className="border-t border-white/10 bg-black/60 backdrop-blur-2xl pt-12 md:pt-16 pb-6 md:pb-8 relative z-20">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 md:gap-8 mb-10 md:mb-12">

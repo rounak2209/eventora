@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-// ============================================================
+
 // 1. CONFIGURATION
-// ============================================================
+
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 export const SOCKET_URL = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : 'http://localhost:5000';
 const api = axios.create({
@@ -12,9 +12,9 @@ const api = axios.create({
   },
 });
 
-// ============================================================
+
 // 2. INTERCEPTORS
-// ============================================================
+
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -37,43 +37,44 @@ api.interceptors.response.use(
   }
 );
 
-// ============================================================
+
 // 3. API FUNCTIONS
-// ============================================================
+
 
 // --- AUTH ---
-export const registerUser = (data) => api.post('/auth/register', data);
+// Smart check for FormData (File Uploads)
+export const registerUser = (data) => {
+    if (data instanceof FormData) {
+        return api.post('/auth/register', data, {
+            transformRequest: [(data, headers) => {
+                delete headers['Content-Type'];
+                return data;
+            }]
+        });
+    }
+    return api.post('/auth/register', data);
+};
+
 export const loginUser = (data) => api.post('/auth/login', data);
 export const addGatekeeper = (data) => api.post('/auth/add-gatekeeper', data);
 export const getGatekeepers = () => api.get('/auth/gatekeepers');
 
-// 🔥 NEW: Gatekeeper Update & Delete APIs
 export const updateGatekeeper = (id, data) => api.put(`/auth/gatekeeper/${id}`, data);
 export const deleteGatekeeper = (id) => api.delete(`/auth/gatekeeper/${id}`);
-
-// 🔥 YE RAHI NAYI LINE: Password update ke liye
 export const updatePassword = (data) => api.put('/auth/update-password', data);
 
 // --- EVENTS ---
 export const getEvents = () => api.get('/events');
-
-// 🔥 NEW LINE ADDED HERE: Organizer ko sirf uske apne events dikhane ke liye
 export const getOrganizerEvents = () => api.get('/events/my-events');
 
-// 🔥 EXPERT FIX: Removed manual 'multipart/form-data'. 
-// FormData khud automatically sahi headers lagata hai boundary ke sath!
 export const createEvent = (data) => api.post('/events', data, {
-    // Ye line assure karti hai ki default JSON header is file upload ko kharab na kare
     transformRequest: [(data, headers) => {
         delete headers['Content-Type'];
         return data;
     }]
 });
 
-// 🔥 NEW: Event Delete & Update APIs (Manage Section ke liye)
 export const deleteEvent = (eventId) => api.delete(`/events/${eventId}`);
-
-// 🔥 FIX ADDED HERE: Update me bhi FormData fix lagaya taaki 500 error na aaye
 export const updateEvent = (eventId, data) => api.put(`/events/${eventId}`, data, {
     transformRequest: [(data, headers) => {
         delete headers['Content-Type'];
@@ -101,9 +102,21 @@ export const getFinderUsers = () => api.get('/finder/users');
 export const sendInvite = (data) => api.post('/finder/invite', data);
 export const getMyRequests = () => api.get('/finder/my-requests');
 export const handleRequest = (data) => api.post('/finder/handle', data);
-export const updateProfile = (data) => api.put('/finder/profile', data);
 
-// --- 🔥 CHAT (New Section) ---
+// 🔥 FIX: Smart check for FormData (Profile Photo Updates)
+export const updateProfile = (data) => {
+    if (data instanceof FormData) {
+        return api.put('/finder/profile', data, {
+            transformRequest: [(data, headers) => {
+                delete headers['Content-Type'];
+                return data;
+            }]
+        });
+    }
+    return api.put('/finder/profile', data);
+};
+
+// --- CHAT ---
 export const getMyConversations = () => api.get('/chat/inbox'); 
 export const getChatHistory = (recipientId, isGroup) => api.get(`/chat/history/${recipientId}?isGroup=${isGroup}`);
 
@@ -117,5 +130,9 @@ export const getStats = (eventId) => api.get(`/analytics/stats?eventId=${eventId
 export const sendAnalyticsEmail = (data) => api.post('/analytics/send-report', data);
 export const downloadAnalyticsReport = (eventId) => 
   api.get(`/analytics/download-report?eventId=${eventId}`, { responseType: 'blob' });
+
+// AI Features
+export const getAiSummary = (eventId) => api.get(`/ai/summary?eventId=${eventId}`);
+export const chatWithAiData = (data) => api.post(`/ai/chat`, data);
 
 export default api;

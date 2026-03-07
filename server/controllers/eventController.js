@@ -22,7 +22,7 @@ const createEvent = async (req, res) => {
         return res.status(400).json({ message: 'Deadline cannot be after the event date!' });
     }
 
-    // 🔥 URL EXTRACTION FIX: Cloudinary kabhi secure_url deta hai, kabhi path. Dono check karenge.
+
     const bannerUrl = req.file ? (req.file.secure_url || req.file.path) : "";
 
     const event = await Event.create({
@@ -32,12 +32,12 @@ const createEvent = async (req, res) => {
       venue, 
       registrationDeadline, 
       category,
-      banner: bannerUrl, // 👈 Photo URL yahan Save hoga
+      banner: bannerUrl, 
       price: Number(price) || 0,
       maxSeats: Number(maxSeats),
-      isTeamEvent: isTeamEvent === 'true' || isTeamEvent === true, // Safely handle boolean
+      isTeamEvent: isTeamEvent === 'true' || isTeamEvent === true, 
       
-      // 🔥 EXACT MATCH WITH YOUR SCHEMA
+
       teamSize: { 
         min: Number(teamSizeMin) || 1, 
         max: Number(teamSizeMax) || 1 
@@ -122,9 +122,9 @@ const joinEvent = async (req, res) => {
       return res.status(400).json({ message: "This is a Team Event. Please create/join a team to register." });
     }
 
-    // Housefull check
+    // SMART VALIDATION FOR SOLO EVENTS (Housefull Check)
     if (event.participants.length >= event.maxSeats) {
-        return res.status(400).json({ message: "Event is Housefull! 🚫" });
+        return res.status(400).json({ message: "Event is Housefull! 🚫 No more slots available." });
     }
 
     // Duplicate check
@@ -133,7 +133,7 @@ const joinEvent = async (req, res) => {
       return res.status(400).json({ message: "You are already registered for this event!" });
     }
 
-    // Success: Participant add karo
+    // Success
     event.participants.push(userId);
     await event.save();
 
@@ -149,7 +149,7 @@ const joinEvent = async (req, res) => {
 const updateEvent = async (req, res) => {
     try {
         const { id } = req.params;
-        const updates = { ...req.body }; // Create a fresh copy of req.body
+        const updates = { ...req.body }; 
 
         const event = await Event.findById(id);
         
@@ -165,17 +165,15 @@ const updateEvent = async (req, res) => {
             return res.status(403).json({ message: "Not authorized! You can only edit events you created." });
         }
 
-        // Agar nayi image aayi hai toh update karo, warna purani rehne do
         if (req.file) {
             updates.banner = req.file.secure_url || req.file.path;
         }
 
-        // 🔥 FIX: Convert Strings back to correct Data Types for MongoDB
+        // Convert Strings back to correct Data Types for MongoDB
         if (updates.price !== undefined) updates.price = Number(updates.price);
         if (updates.maxSeats !== undefined) updates.maxSeats = Number(updates.maxSeats);
         if (updates.isLive !== undefined) updates.isLive = updates.isLive === 'true' || updates.isLive === true;
 
-        // Object structure preserve karna (specifically teamSize ke liye)
         if (updates.teamSizeMin !== undefined || updates.teamSizeMax !== undefined) {
             updates.teamSize = {
                 min: Number(updates.teamSizeMin) || (event.teamSize ? event.teamSize.min : 1),
@@ -204,7 +202,6 @@ const deleteEvent = async (req, res) => {
             return res.status(404).json({ message: "Event not found" });
         }
 
-        // 🔥 SAFE SECURITY CHECK
         const eventOrganizerId = event.organizer._id ? event.organizer._id.toString() : event.organizer.toString();
         const loggedInUserId = req.user._id ? req.user._id.toString() : req.user.id.toString();
 
@@ -226,9 +223,8 @@ const deleteEvent = async (req, res) => {
 // ==========================================
 const getOrganizerEvents = async (req, res) => {
     try {
-        // Sirf wahi events dhoondho jinka organizer current logged-in user hai
         const events = await Event.find({ organizer: req.user._id })
-            .sort({ createdAt: -1 }) // Naye events upar
+            .sort({ createdAt: -1 }) 
             .lean();
         res.json(events);
     } catch (error) {
@@ -236,7 +232,6 @@ const getOrganizerEvents = async (req, res) => {
     }
 };
 
-// EXPORT WALE BLOCK MEIN ISKO BHI ADD KAR DENA
 module.exports = { 
     createEvent, 
     getEvents, 
@@ -244,5 +239,5 @@ module.exports = {
     joinEvent,
     updateEvent, 
     deleteEvent,
-    getOrganizerEvents // 🔥 Ye naya add kiya hai
+    getOrganizerEvents 
 };

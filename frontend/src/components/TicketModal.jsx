@@ -23,7 +23,7 @@ const TicketModal = ({ isOpen, onClose, ticketData }) => {
       
       <div className="w-full max-w-[320px] mb-auto flex flex-col bg-[#0a0a0a]/95 backdrop-blur-3xl saturate-150 rounded-[2rem] overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.9)] border border-white/10 relative animate-in zoom-in-95 duration-300">
         
-        {/* Glow Effects */}
+
         <div className="absolute top-[-30%] left-[-30%] w-56 h-56 bg-orange-600/20 rounded-full blur-[70px] pointer-events-none"></div>
         <div className="absolute bottom-[-30%] right-[-30%] w-56 h-56 bg-amber-600/10 rounded-full blur-[70px] pointer-events-none"></div>
 
@@ -68,14 +68,13 @@ const TicketModal = ({ isOpen, onClose, ticketData }) => {
 
             {/* QR Section */}
             <div className="flex flex-col items-center mt-1">
-                {/* 🔥 FIX: Padding badha di aur 'includeMargin={true}' kar diya taaki scanner ko proper white boundary mile */}
+
                 <div className="bg-white p-3.5 rounded-2xl shadow-[0_0_25px_rgba(255,255,255,0.15)] mb-3 relative z-10 flex justify-center items-center">
                     <QRCodeCanvas 
                         value={qrPayload} 
                         size={140}
                         level={"H"} 
-                        includeMargin={true} // 👈 Masterstroke: Ye scanning fail nahi hone dega
-                        // className="rounded-lg" // isko hata diya kyunki ye white border ko kaat raha tha
+                        includeMargin={true} // Ye scanning fail nahi hone dega
                     />
                 </div>
                 <div className="flex items-center gap-1.5 text-green-400 bg-green-500/10 border border-green-500/20 px-3 py-1.5 rounded-full font-black text-[9px] uppercase tracking-wider shadow-sm relative z-10">

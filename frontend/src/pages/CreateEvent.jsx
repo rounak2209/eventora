@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { createEvent } from '../api'; // 🔥 Wapas api.js use kar rahe hain (No hardcoding)
+import { createEvent } from '../api'; 
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { ImagePlus, Calendar as CalendarIcon, MapPin, Users, Tags, IndianRupee, Trophy, ArrowLeft, Send } from 'lucide-react'; 
@@ -7,8 +7,7 @@ import { ImagePlus, Calendar as CalendarIcon, MapPin, Users, Tags, IndianRupee, 
 const CreateEvent = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  
-  // 🔥 TERI ORIGINAL STATE (UNTOUCHED)
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -58,12 +57,12 @@ const CreateEvent = () => {
       });
       
       if (bannerFile) {
-        payload.append('banner', bannerFile); // 🔥 Pack banner for api.js
+        payload.append('banner', bannerFile); 
       }
 
       const tid = toast.loading("Launching Event & Uploading Image... 🚀");
       
-      // 🔥 EXPERT FIX: Seedha api.js call ho raha hai bina kisi hardcoding ke!
+      //api.js call ho raha hai bina kisi hardcoding ke!
       await createEvent(payload);
 
       toast.dismiss(tid);

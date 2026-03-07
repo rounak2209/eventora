@@ -7,13 +7,20 @@ import { AuthProvider } from './context/AuthContext.jsx'
 import { Toaster } from 'react-hot-toast'
 import { SocketProvider } from './context/SocketContext.jsx'
 
+
+if (import.meta.env.PROD) { 
+    console.log = () => {};
+    console.error = () => {};
+    console.debug = () => {};
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter> {/* Router sabse bahar */}
-      <AuthProvider> {/* Phir AuthProvider */}
+    <BrowserRouter> 
+      <AuthProvider> 
         <SocketProvider>
           <App />
-          <Toaster position="top-center" /> {/* Notifications ke liye */}
+          <Toaster position="top-center" /> 
         </SocketProvider>
       </AuthProvider>
     </BrowserRouter>

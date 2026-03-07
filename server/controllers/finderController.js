@@ -4,6 +4,20 @@ const TeamRequest = require('../models/TeamRequest');
 const Event = require('../models/Event');
 
 // ============================================================
+// HELPER: Safe Unique Team Size Calculator
+// ============================================================
+const getUniqueTeamSize = (team) => {
+    if (!team) return 0;
+    const ids = [];
+    if (team.leader) ids.push(team.leader);
+    if (team.members && Array.isArray(team.members)) {
+        ids.push(...team.members);
+    }
+    const validIds = ids.filter(id => id).map(id => id.toString());
+    return new Set(validIds).size;
+};
+
+// ============================================================
 // 🔥 HELPER: Skill Match Logic
 // ============================================================
 const checkSkillMatch = (userSkills, teamSkills, mode) => {
@@ -22,16 +36,27 @@ const checkSkillMatch = (userSkills, teamSkills, mode) => {
   }
 };
 
-// ============================================================
-// 1. UPDATE USER PROFILE (Skills, Bio, etc.)
-// ============================================================
+
 const updateProfile = async (req, res) => {
   try {
-    const { skills, bio, isLookingForTeam } = req.body;
+
+    let { skills, bio, isLookingForTeam } = req.body;
+    
+
+    if (typeof isLookingForTeam === 'string') {
+        isLookingForTeam = isLookingForTeam === 'true';
+    }
+
+    let updates = { skills, bio, isLookingForTeam };
+
+
+    if (req.file) {
+        updates.profilePic = req.file.secure_url || req.file.path;
+    }
     
     const user = await User.findByIdAndUpdate(
       req.user._id, 
-      { skills, bio, isLookingForTeam }, 
+      updates, 
       { new: true }
     ).select('-password');
 
@@ -46,12 +71,12 @@ const updateProfile = async (req, res) => {
 // ============================================================
 const getAvailableUsers = async (req, res) => {
   try {
-    // 1. Khud ko chhodkar saare 'student' role wale users lao
     const users = await User.find({ 
         _id: { $ne: req.user._id },
         role: 'student' 
     })
-    .select('name email skills bio department year role isLookingForTeam') 
+
+    .select('name email skills bio department year gender role isLookingForTeam profilePic') 
     .limit(50); 
 
     res.status(200).json(users);
@@ -72,7 +97,6 @@ const getStudents = async (req, res) => {
         _id: { $ne: req.user._id } 
     }; 
 
-    // Event-specific Filter: Jo pehle se kisi team mein hain unhe hide karo
     if (eventId) {
       const teams = await Team.find({ event: eventId }).select('members leader');
       let bookedUserIds = [];
@@ -83,13 +107,11 @@ const getStudents = async (req, res) => {
       query._id = { $nin: [...bookedUserIds, req.user._id] }; 
     }
 
-    // Skill Filter
     if (skills) {
       const skillArray = skills.split(',').map(s => s.trim());
       query.skills = { $in: skillArray.map(s => new RegExp(s, 'i')) };
     }
 
-    // Text Search (Name or Department)
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
@@ -98,7 +120,8 @@ const getStudents = async (req, res) => {
     }
 
     const students = await User.find(query)
-      .select('name email skills bio year department isLookingForTeam role')
+
+      .select('name email skills bio year gender department isLookingForTeam role profilePic')
       .lean();
 
     res.json(students);
@@ -119,21 +142,27 @@ const findMatchingTeams = async (req, res) => {
     const user = await User.findById(userId).lean();
     if (!user) return res.status(404).json({ message: "User not found" });
 
+    const event = await Event.findById(eventId).lean();
+    const maxAllowed = event?.teamSize?.max ? Number(event.teamSize.max) : 4;
+
     const allTeams = await Team.find({ 
       event: eventId, 
       isOpen: true,
       leader: { $ne: userId },
       members: { $ne: userId }
     })
-    .populate('leader', 'name email')
+    .populate('leader', 'name email profilePic') 
     .lean();
 
     const matchingTeams = allTeams.filter(team => {
-      // Year Check
+      const currentTeamSize = getUniqueTeamSize(team);
+      if (currentTeamSize >= maxAllowed) {
+        return false; 
+      }
+
       if (team.requiredYear?.length > 0 && !team.requiredYear.includes(user.year)) {
         return false; 
       }
-      // Skill Logic
       return checkSkillMatch(user.skills, team.requiredSkills, team.skillMatchMode);
     });
 
@@ -157,7 +186,29 @@ const sendRequest = async (req, res) => {
     const team = await Team.findById(teamId);
     if (!team) return res.status(404).json({ message: "Team not found" });
 
-    // Existing Request Check
+    const event = await Event.findById(team.event);
+    if (!event) return res.status(404).json({ message: "Event not found" });
+
+    if (!team.isOpen) {
+        return res.status(403).json({ message: "This squad's entry is finalized. Cannot send requests/invites anymore!" });
+    }
+
+    const isAlreadyMember = team.leader.toString() === targetUserId.toString() || 
+                            team.members.some(mId => mId.toString() === targetUserId.toString());
+    
+    if (isAlreadyMember) {
+        return res.status(400).json({ message: "User is already currently in the team." });
+    }
+
+    const currentTeamSize = getUniqueTeamSize(team);
+    const maxAllowed = event.teamSize?.max ? Number(event.teamSize.max) : 4;
+
+    if (currentTeamSize >= maxAllowed) {
+        return res.status(400).json({ 
+          message: `This team is Housefull! Maximum allowed members for ${event.title} is ${maxAllowed}. You currently have ${currentTeamSize} members. 🚫` 
+        });
+    }
+
     const existing = await TeamRequest.findOne({ 
         team: teamId, 
         user: targetUserId 
@@ -165,25 +216,20 @@ const sendRequest = async (req, res) => {
     
     if (existing) {
         if (existing.status === 'PENDING') {
-             return res.status(400).json({ message: "A request is already pending." });
+             return res.status(400).json({ message: "A request is already pending for this user." });
         } 
-        else if (existing.status === 'ACCEPTED') {
-             return res.status(400).json({ message: "User is already in the team." });
-        }
-        else if (existing.status === 'REJECTED') {
-             // 💡 Purani rejected request delete karo taaki naya chance mil sake
+        else if (existing.status === 'ACCEPTED' || existing.status === 'REJECTED') {
              await TeamRequest.findByIdAndDelete(existing._id);
         }
     }
 
-    // Create New Request
     await TeamRequest.create({
       team: teamId,
       user: targetUserId,
-      event: team.event,
+      event: event._id,
       type: requestType, 
       status: 'PENDING',
-      sender: req.user._id, // 🔥 YE LINE HONI CHAHIYE (Sender save hona chahiye)
+      sender: req.user._id,
       message: message || "Hey, let's team up!"
     });
 
@@ -205,13 +251,10 @@ const handleRequest = async (req, res) => {
     const { requestId, action } = req.body; 
     const userId = req.user._id;
 
-    const request = await TeamRequest.findById(requestId)
-      .populate('team')
-      .populate('event');
+    const request = await TeamRequest.findById(requestId).populate('team');
 
     if (!request) return res.status(404).json({ message: "Request not found" });
 
-    // Security Check: Only relevant parties can action
     if (request.type === 'JOIN_REQUEST') {
         if (request.team.leader.toString() !== userId.toString()) {
             return res.status(403).json({ message: "Only the Team Leader can accept join requests." });
@@ -222,6 +265,10 @@ const handleRequest = async (req, res) => {
         }
     }
 
+    if (action === 'ACCEPT' && !request.team.isOpen) {
+        return res.status(403).json({ message: "This team has already finalized their entry. You cannot join now." });
+    }
+
     if (action === 'REJECT') {
       request.status = 'REJECTED';
       await request.save();
@@ -230,13 +277,13 @@ const handleRequest = async (req, res) => {
 
     if (action === 'ACCEPT') {
       const team = await Team.findById(request.team._id);
-      
-      // Team Size Limit Check (Dynamic from Event)
       const event = await Event.findById(team.event);
-      const maxMembers = event?.teamSize?.max || 4; 
+      
+      const currentTeamSize = getUniqueTeamSize(team);
+      const maxAllowed = event?.teamSize?.max ? Number(event.teamSize.max) : 4; 
 
-      if (team.members.length >= maxMembers) {
-        return res.status(400).json({ message: "Team is already full!" });
+      if (currentTeamSize >= maxAllowed) {
+        return res.status(400).json({ message: `Team is Housefull! Maximum limit is ${maxAllowed}. You currently have ${currentTeamSize} members. 🚫` });
       }
 
       if (!team.members.includes(request.user)) {
@@ -262,40 +309,36 @@ const getMyRequests = async (req, res) => {
   try {
     const userId = req.user._id;
     
-    // 1. Un teams ko dhundo jiska user leader hai
     const myTeams = await Team.find({ leader: userId }).select('_id');
     const myTeamIds = myTeams.map(t => t._id);
 
-    // 2. Fetch Pending Requests
     const requests = await TeamRequest.find({
       $or: [
         { user: userId, type: 'INVITE', status: 'PENDING' }, 
         { team: { $in: myTeamIds }, type: 'JOIN_REQUEST', status: 'PENDING' }
       ]
     })
-    // 🔥 FIX 1: Sender (Leader/User) ka naam laao
-    .populate('sender', 'name email') // Ye line zaroori hai "From Leader" ke liye
-    // 🔥 FIX 2: User details laao
-    .populate('user', 'name skills department year') 
-    // 🔥 FIX 3: Team ke andar 'Leader' aur 'Event' dono ko Deep Populate karo
+    .populate('sender', 'name email profilePic') // 🔥 Naya
+    .populate('user', 'name skills department year profilePic') // 🔥 Naya
     .populate({
         path: 'team',
-        select: 'name leader event', 
+        select: 'name leader event isOpen', 
         populate: [
-            { path: 'leader', select: 'name email' }, // Leader details within team
-            { path: 'event', select: 'title' }        // Event Name
+            { path: 'leader', select: 'name email profilePic' }, // 🔥 Naya
+            { path: 'event', select: 'title' }
         ]
     })
     .sort({ createdAt: -1 });
 
-    res.json(requests);
+    const validRequests = requests.filter(r => r.team?.isOpen !== false);
+
+    res.json(validRequests);
 
   } catch (error) {
     console.error("Error in getMyRequests:", error);
     res.status(500).json({ message: error.message });
   }
 };
-
 
 module.exports = { 
     updateProfile, 

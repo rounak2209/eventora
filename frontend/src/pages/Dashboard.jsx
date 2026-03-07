@@ -11,21 +11,30 @@ import {
 } from 'lucide-react'; 
 import AuthContext from '../context/AuthContext';
 import TicketModal from '../components/TicketModal'; 
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import ChatBox from '../components/ChatBox'; 
+
+//GLOBAL CACHE
+let cachedDashboardData = null;
 
 const Dashboard = () => {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation(); 
   
-  const [activeTab, setActiveTab] = useState('events'); 
-  const [loading, setLoading] = useState(true);
-  const [refreshTrigger, setRefreshTrigger] = useState(0); 
+  const queryParams = new URLSearchParams(location.search);
+  const tabFromUrl = queryParams.get('tab') || 'events';
 
-  const [events, setEvents] = useState([]);
-  const [myTeams, setMyTeams] = useState([]);
-  const [requests, setRequests] = useState([]);
-  const [conversations, setConversations] = useState([]); 
+  const [activeTab, setActiveTab] = useState(tabFromUrl); 
+  
+  // Initial state me hi Cache load kardo!
+  const [loading, setLoading] = useState(cachedDashboardData ? false : true);
+  const [events, setEvents] = useState(cachedDashboardData ? cachedDashboardData.events : []);
+  const [myTeams, setMyTeams] = useState(cachedDashboardData ? cachedDashboardData.teams : []);
+  const [requests, setRequests] = useState(cachedDashboardData ? cachedDashboardData.requests : []);
+  const [conversations, setConversations] = useState(cachedDashboardData ? cachedDashboardData.conversations : []); 
+
+  const [refreshTrigger, setRefreshTrigger] = useState(0); 
 
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [ticketData, setTicketData] = useState(null);
@@ -33,9 +42,9 @@ const Dashboard = () => {
   const [createTeamData, setCreateTeamData] = useState({ name: '', desc: '', eventId: '' });
   const [joinCode, setJoinCode] = useState({});
 
-  // 🔥 SEARCH & FILTER STATES
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [flippedCards, setFlippedCards] = useState({});
 
   const [chatOpen, setChatOpen] = useState(false);
   const [chatRecipient, setChatRecipient] = useState(null);
@@ -44,10 +53,24 @@ const Dashboard = () => {
   const userId = user?._id || user?.id;
 
   useEffect(() => {
+      const currentTab = new URLSearchParams(location.search).get('tab');
+      if (currentTab && ['events', 'my_hub', 'inbox'].includes(currentTab)) {
+          setActiveTab(currentTab);
+      }
+  }, [location.search]);
+
+  const handleTabChange = (tab) => {
+      setActiveTab(tab);
+      navigate(`?tab=${tab}`, { replace: true });
+  };
+
+  useEffect(() => {
     if (!userId) return;
 
     const fetchData = async () => {
       try {
+        if (!cachedDashboardData) setLoading(true);
+
         const [eRes, tRes, rRes, cRes] = await Promise.all([
             getEvents().catch(() => ({ data: [] })),
             getMyTeam().catch(() => ({ data: [] })),
@@ -55,12 +78,23 @@ const Dashboard = () => {
             getMyConversations().catch(() => ({ data: [] }))
         ]);
 
-        setEvents(eRes.data || []);
-        
-        const teamsData = tRes.data;
-        setMyTeams(Array.isArray(teamsData) ? teamsData : teamsData ? [teamsData] : []);
-        setRequests(rRes.data || []);
-        setConversations(cRes.data || []); 
+        const newEvents = eRes.data || [];
+        const newTeams = Array.isArray(tRes.data) ? tRes.data : tRes.data ? [tRes.data] : [];
+        const newRequests = rRes.data || [];
+        const newConversations = cRes.data || [];
+
+        // Naye data ko future ke liye Cache me save karna
+        cachedDashboardData = {
+            events: newEvents,
+            teams: newTeams,
+            requests: newRequests,
+            conversations: newConversations
+        };
+
+        setEvents(newEvents);
+        setMyTeams(newTeams);
+        setRequests(newRequests);
+        setConversations(newConversations); 
         
         setLoading(false);
       } catch (error) {
@@ -68,13 +102,26 @@ const Dashboard = () => {
         setLoading(false);
       }
     };
-    fetchData();
+
+    //CACHE HAI TOH FETCH MAT KARO (Jab tak user Refresh na dabaye)
+    if (!cachedDashboardData || refreshTrigger > 0) {
+        fetchData();
+    }
   }, [userId, refreshTrigger]); 
 
   const refresh = () => setRefreshTrigger(p => p + 1);
 
+  const toggleFlip = (eventId) => {
+      setFlippedCards(prev => ({ ...prev, [eventId]: !prev[eventId] }));
+  };
+
   const isRegistered = (event) => {
-    return event.participants?.some(p => String(p._id || p) === String(userId));
+    const inParticipants = event.participants?.some(p => String(p._id || p) === String(userId));
+    if (event.isTeamEvent) {
+        const hasActiveTeam = myTeams.some(t => String(t.event?._id || t.event) === String(event._id));
+        return inParticipants && hasActiveTeam; 
+    }
+    return inParticipants;
   };
 
   const handleBookTicket = async (eventId) => {
@@ -83,7 +130,7 @@ const Dashboard = () => {
         const myTeam = myTeams.find(t => t.event?._id === eventId);
         await bookTicket({ eventId, teamId: myTeam ? myTeam._id : null });
         toast.dismiss(tid); toast.success("Ticket Confirmed & Emailed! 🎉");
-        refresh(); setActiveTab('my_hub');
+        refresh(); handleTabChange('my_hub'); 
     } catch (err) { toast.dismiss(tid); toast.error(err.response?.data?.message || "Booking Failed"); }
   };
 
@@ -103,7 +150,7 @@ const Dashboard = () => {
     try {
         await joinTeam({ teamCode: code, eventId });
         toast.success("Joined Successfully!");
-        refresh(); setActiveTab('my_hub');
+        refresh(); handleTabChange('my_hub'); 
     } catch (err) { toast.error(err.response?.data?.message || "Invalid Code"); }
   };
 
@@ -143,6 +190,7 @@ const Dashboard = () => {
       setChatOpen(true);
   };
 
+  // Loader tabhi dikhega jab sach me data null ho
   if (loading) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-transparent backdrop-blur-md">
@@ -163,6 +211,7 @@ const Dashboard = () => {
   const getMaxTeamSize = (event) => {
       if (typeof event.teamSizeMax === 'number') return event.teamSizeMax;
       if (typeof event.teamSize === 'number') return event.teamSize;
+      if (event.teamSize?.max) return event.teamSize.max;
       return 4; 
   };
 
@@ -193,6 +242,7 @@ const Dashboard = () => {
           <h1 className="text-3xl font-black text-white tracking-tight drop-shadow-md">Hello, {user?.name?.split(' ')[0]}! </h1>
           <p className="text-gray-300 font-medium">Ready for your next challenge?</p>
         </div>
+        
         <div className="flex bg-white/5 backdrop-blur-2xl p-1.5 rounded-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] border border-white/10 overflow-x-auto max-w-full custom-scrollbar">
            <style>
             {` .custom-scrollbar::-webkit-scrollbar { height: 0px; } `}
@@ -200,8 +250,15 @@ const Dashboard = () => {
            <button onClick={() => navigate('/finder')} className="px-5 py-2 rounded-xl font-bold text-xs uppercase tracking-widest text-orange-400 hover:bg-white/10 transition-all flex items-center gap-2 whitespace-nowrap"><Search size={14} /> Find Talent</button>
            
            {['events', 'my_hub', 'inbox'].map((tab) => (
-             <button key={tab} onClick={() => setActiveTab(tab)} className={`px-5 py-2 rounded-xl font-bold text-xs tracking-widest uppercase transition-all whitespace-nowrap ${activeTab === tab ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'text-gray-300 hover:bg-white/10 border border-transparent'}`}>{tab.replace('_', ' ')}</button>
+             <button 
+                key={tab} 
+                onClick={() => handleTabChange(tab)} 
+                className={`px-5 py-2 rounded-xl font-bold text-xs tracking-widest uppercase transition-all whitespace-nowrap ${activeTab === tab ? 'bg-orange-500/10 text-orange-400 border border-orange-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'text-gray-300 hover:bg-white/10 border border-transparent'}`}
+             >
+                {tab.replace('_', ' ')}
+             </button>
            ))}
+           <button onClick={() => navigate('/profile')} className="px-5 py-2 rounded-xl font-bold text-xs tracking-widest uppercase transition-all whitespace-nowrap text-gray-300 hover:bg-white/10 border border-transparent">PROFILE</button>
         </div>
       </div>
 
@@ -248,100 +305,151 @@ const Dashboard = () => {
                 const finalBannerUrl = getImageUrl(event.banner);
 
                 return (
-                  <div key={event._id} className="relative h-[420px] rounded-[2.5rem] bg-white/[0.02] backdrop-blur-3xl overflow-hidden group shadow-[0_8px_32px_rgba(0,0,0,0.3)] border border-white/10 border-t-white/20 flex flex-col justify-end hover:-translate-y-1 transition-all duration-300">
-                    
-                    <div className="absolute inset-0 z-0 overflow-hidden">
-                        {finalBannerUrl ? (
-                            <img 
-                                src={finalBannerUrl} 
-                                alt={event.title} 
-                                className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 opacity-80"
-                                onError={(e) => { e.target.src = fallbackImage; e.target.onerror = null; }} 
-                            />
-                        ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-white/5 bg-gradient-to-br from-white/[0.02] to-transparent">
-                                <ImageIcon size={60} className="mb-2 opacity-20" strokeWidth={1} />
-                            </div>
-                        )}
-                    </div>
-                    
-                    <div className={`absolute inset-0 bg-gradient-to-t ${finalBannerUrl ? 'from-[#09090b] via-[#09090b]/70 to-transparent' : 'from-transparent to-transparent'} z-10 pointer-events-none`}></div>
-
-                    <div className="absolute top-5 left-5 z-20 flex gap-2">
-                        <span className="bg-white/10 backdrop-blur-md text-gray-200 border border-white/20 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg flex items-center gap-1.5">
-                            <Tags size={10} className="text-orange-400" /> {event.category || 'Tech'}
-                        </span>
-                    </div>
-                    <div className="absolute top-5 right-5 z-20">
-                        <span className="bg-orange-500/10 backdrop-blur-md text-orange-400 border border-orange-500/30 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-1">
-                            {event.price > 0 ? <><IndianRupee size={12}/>{event.price}</> : 'FREE'}
-                        </span>
-                    </div>
-
-                    <div className="relative z-20 p-6 w-full flex flex-col gap-4">
-                        <div>
-                            <h3 className="text-2xl font-black text-white leading-tight drop-shadow-md mb-0.5">{event.title}</h3>
-                            <p className="text-gray-300/80 text-[11px] font-medium line-clamp-1">
-                                {event.description || "Join this amazing event and showcase your skills to the world."}
-                            </p>
-                        </div>
+                  <div 
+                      key={event._id} 
+                      className="group cursor-pointer perspective-1000 h-[470px]" 
+                      style={{ perspective: '1000px' }}
+                      onClick={() => toggleFlip(event._id)}
+                  >
+                    <div 
+                        className="w-full h-full transition-transform duration-500 relative"
+                        style={{ 
+                            transformStyle: 'preserve-3d', 
+                            transform: flippedCards[event._id] ? 'rotateY(180deg)' : 'rotateY(0deg)' 
+                        }}
+                    >
                         
-                        <div className="flex flex-wrap gap-2">
-                            <div className="bg-white/5 backdrop-blur-xl border border-white/10 px-3 py-2 rounded-xl flex-1 min-w-[100px]">
-                                <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest mb-0.5"><Calendar size={8} className="inline mr-1 text-orange-400"/> Date</p>
-                                <p className="text-[9px] font-bold text-white">{formatDate(event.date).split('•')[0]}</p>
+                        <div 
+                            className="absolute inset-0 w-full h-full rounded-[2.5rem] bg-white/[0.02] backdrop-blur-3xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.3)] border border-white/10 border-t-white/20 flex flex-col justify-end group-hover:-translate-y-1 transition-transform duration-300"
+                            style={{ backfaceVisibility: 'hidden' }}
+                        >
+                            
+                            <div className="absolute inset-0 z-0 overflow-hidden">
+                                {finalBannerUrl ? (
+                                    <img 
+                                        src={finalBannerUrl} 
+                                        alt={event.title} 
+                                        className="w-full h-full object-cover object-center opacity-80"
+                                        onError={(e) => { e.target.src = fallbackImage; e.target.onerror = null; }} 
+                                    />
+                                ) : (
+                                    <div className="w-full h-full flex flex-col items-center justify-center text-white/5 bg-gradient-to-br from-white/[0.02] to-transparent">
+                                        <ImageIcon size={60} className="mb-2 opacity-20" strokeWidth={1} />
+                                    </div>
+                                )}
                             </div>
-                            <div className="bg-white/5 backdrop-blur-xl border border-white/10 px-3 py-2 rounded-xl flex-1 min-w-[100px]">
-                                <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest mb-0.5"><MapPin size={8} className="inline mr-1 text-orange-400"/> Venue</p>
-                                <p className="text-[9px] font-bold text-white truncate">{event.venue}</p>
+                            
+                            <div className={`absolute inset-0 bg-gradient-to-t ${finalBannerUrl ? 'from-[#09090b] via-[#09090b]/80 to-transparent' : 'from-transparent to-transparent'} z-10 pointer-events-none`}></div>
+
+                            <div className="absolute top-5 left-5 z-20 flex gap-2">
+                                <span className="bg-white/10 backdrop-blur-md text-gray-200 border border-white/20 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg flex items-center gap-1.5">
+                                    <Tags size={10} className="text-orange-400" /> {event.category || 'Tech'}
+                                </span>
                             </div>
-                            <div className="bg-white/5 backdrop-blur-xl border border-white/10 px-3 py-2 rounded-xl flex-[2]">
-                                <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest mb-0.5"><Users size={8} className="inline mr-1 text-orange-400"/> Squad Size</p>
-                                <p className="text-[9px] font-bold text-white">
-                                    {event.isTeamEvent ? `Max ${teamSizeDisplay}` : 'Solo'}
+                            <div className="absolute top-5 right-5 z-20">
+                                <span className="bg-orange-500/10 backdrop-blur-md text-orange-400 border border-orange-500/30 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-1">
+                                    {event.price > 0 ? <><IndianRupee size={12}/>{event.price}</> : 'FREE'}
+                                </span>
+                            </div>
+
+                            <div className="relative z-20 p-6 w-full flex flex-col gap-4">
+                                <div>
+                                    <h3 className="text-2xl font-black text-white leading-tight drop-shadow-md mb-0.5">{event.title}</h3>
+                                    <p className="text-gray-300/80 text-[11px] font-medium line-clamp-1">
+                                        {event.description || "Click card to view details."}
+                                    </p>
+                                </div>
+                                
+                                <div className="flex flex-wrap gap-2">
+                                    <div className="bg-white/5 backdrop-blur-xl border border-white/10 px-3 py-2 rounded-xl flex-1 min-w-[100px]">
+                                        <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest mb-0.5"><Calendar size={8} className="inline mr-1 text-orange-400"/> Date</p>
+                                        <p className="text-[9px] font-bold text-white">{formatDate(event.date).split('•')[0]}</p>
+                                    </div>
+                                    <div className="bg-white/5 backdrop-blur-xl border border-white/10 px-3 py-2 rounded-xl flex-1 min-w-[100px]">
+                                        <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest mb-0.5"><MapPin size={8} className="inline mr-1 text-orange-400"/> Venue</p>
+                                        <p className="text-[9px] font-bold text-white truncate">{event.venue}</p>
+                                    </div>
+                                    <div className="bg-white/5 backdrop-blur-xl border border-white/10 px-3 py-2 rounded-xl flex-[2]">
+                                        <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest mb-0.5"><Users size={8} className="inline mr-1 text-orange-400"/> Squad Size</p>
+                                        <p className="text-[9px] font-bold text-white">
+                                            {event.isTeamEvent ? `Max ${teamSizeDisplay}` : 'Solo'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="mt-1 mb-2 border-t border-white/10 pt-3 flex flex-col items-center">
+                                    <p className="text-[10px] font-black text-red-400 uppercase tracking-widest flex items-center gap-1.5 drop-shadow-md">
+                                        ⏳ Deadline: {formatDate(event.registrationDeadline).split('•')[0]}
+                                    </p>
+                                    <p className="text-[8px] text-gray-500 uppercase tracking-[0.2em] font-bold mt-1.5 animate-pulse bg-white/5 px-3 py-1 rounded-full border border-white/5">
+                                        Click Card To View Details
+                                    </p>
+                                </div>
+
+                                <div className="mt-0 relative z-30" onClick={(e) => e.stopPropagation()}>
+                                    {hasTicket ? (
+                                    <button onClick={() => handleShowTicket(event, myTeam)} className="w-full bg-emerald-500/10 backdrop-blur-md text-emerald-400 border border-emerald-500/30 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-emerald-500/20 transition shadow-sm active:scale-95"><QrCode size={14}/> Ticket Confirmed</button> 
+                                    ) : hasTeam ? ( 
+                                    isLeader ? (
+                                        <div className="flex gap-2 items-center">
+                                            <span className="flex-1 text-[9px] text-gray-300 font-black uppercase tracking-widest bg-white/5 backdrop-blur-md px-3 py-3.5 rounded-xl border border-white/10 text-center truncate">{myTeam.name}</span>
+                                            <button onClick={() => handleBookTicket(event._id)} className="flex-[2] bg-orange-500/10 border border-orange-500/30 text-orange-400 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-500/20 transition active:scale-95 text-center">Finalize Entry</button>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-orange-500/10 backdrop-blur-md p-3.5 rounded-xl text-center border border-orange-500/20"><p className="text-orange-400 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2"><Info size={14}/> Waiting for Leader</p></div> 
+                                    )
+                                    ) : ( 
+                                    event.isTeamEvent ? (
+                                        <div className="space-y-2">
+                                        {createTeamData.eventId === event._id ? (
+                                            <form onSubmit={handleCreateTeam} className="bg-black/40 backdrop-blur-2xl p-3 rounded-2xl border border-white/10 shadow-2xl animate-in slide-in-from-bottom-2">
+                                                <input type="text" placeholder="Enter Squad Name..." className="w-full text-xs p-2.5 bg-white/5 border border-white/10 text-white rounded-xl mb-2 focus:ring-1 focus:ring-orange-500/50 outline-none placeholder-gray-500 font-bold" value={createTeamData.name} onChange={e => setCreateTeamData({...createTeamData, name: e.target.value})} required/>
+                                                <div className="flex gap-2">
+                                                    <button className="bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[9px] uppercase tracking-widest py-2.5 rounded-xl font-black flex-1 active:scale-95 transition-all hover:bg-orange-500/20">Create</button>
+                                                    <button type="button" onClick={() => setCreateTeamData({ name: '', eventId: '' })} className="bg-white/5 text-gray-400 text-[9px] uppercase tracking-widest py-2.5 rounded-xl font-black border border-white/10 hover:bg-white/10 hover:text-white transition px-4 active:scale-95">Cancel</button>
+                                                </div>
+                                            </form>
+                                        ) : (
+                                            <div className="flex gap-2">
+                                                <button onClick={() => setCreateTeamData({...createTeamData, eventId: event._id})} className="flex-[1.5] bg-orange-500/10 hover:bg-orange-500/20 backdrop-blur-md text-orange-400 border border-orange-500/30 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition active:scale-95">Create Squad</button>
+                                                
+                                                <div className="flex-[2] flex items-center bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-0.5 shadow-inner focus-within:border-orange-500/50 transition-colors">
+                                                    <input type="text" placeholder="Join Code" className="bg-transparent text-white px-3 w-full outline-none text-[10px] font-bold uppercase tracking-widest placeholder-gray-500" value={joinCode[event._id] || ''} onChange={(e) => setJoinCode({...joinCode, [event._id]: e.target.value})}/>
+                                                    <button onClick={() => handleJoinByCode(event._id)} className="bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 p-2 rounded-lg text-orange-400 transition-all active:scale-90"><ArrowRight size={14}/></button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        </div>
+                                    ) : (
+                                        <button onClick={() => handleBookTicket(event._id)} className="w-full bg-orange-500/10 hover:bg-orange-500/20 backdrop-blur-md text-orange-400 border border-orange-500/30 py-3.5 rounded-xl font-black text-[11px] uppercase tracking-[0.2em] transition active:scale-95">Register Solo</button> 
+                                    )
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div 
+                            className="absolute inset-0 w-full h-full rounded-[2.5rem] bg-[#0f0f13] border border-white/10 p-8 flex flex-col shadow-[0_8px_32px_rgba(0,0,0,0.5)] group-hover:-translate-y-1 transition-transform duration-300"
+                            style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+                        >
+                            <div className="flex items-center gap-3 mb-6 border-b border-white/10 pb-4">
+                                <Info className="text-orange-400" size={24} />
+                                <h3 className="text-xl font-black text-white uppercase tracking-widest">About Event</h3>
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 mb-4">
+                                <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap font-medium">
+                                    {event.description || "No specific details provided for this event by the organizer."}
+                                </p>
+                            </div>
+
+                            <div className="mt-auto pt-4 border-t border-white/10 text-center">
+                                <p className="text-[10px] text-gray-500 uppercase tracking-widest font-black flex items-center justify-center gap-2">
+                                    <ArrowRight size={12} className="rotate-180" /> Click Anywhere To Flip Back
                                 </p>
                             </div>
                         </div>
 
-                        <div className="mt-1">
-                            {hasTicket ? (
-                            <button onClick={() => handleShowTicket(event, myTeam)} className="w-full bg-emerald-500/10 backdrop-blur-md text-emerald-400 border border-emerald-500/30 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-emerald-500/20 transition shadow-sm active:scale-95"><QrCode size={14}/> Ticket Confirmed</button> 
-                            ) : hasTeam ? ( 
-                            isLeader ? (
-                                <div className="flex gap-2 items-center">
-                                    <span className="flex-1 text-[9px] text-gray-300 font-black uppercase tracking-widest bg-white/5 backdrop-blur-md px-3 py-3.5 rounded-xl border border-white/10 text-center truncate">{myTeam.name}</span>
-                                    <button onClick={() => handleBookTicket(event._id)} className="flex-[2] bg-orange-500/10 border border-orange-500/30 text-orange-400 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-500/20 transition active:scale-95 text-center">Finalize Entry</button>
-                                </div>
-                            ) : (
-                                <div className="bg-orange-500/10 backdrop-blur-md p-3.5 rounded-xl text-center border border-orange-500/20"><p className="text-orange-400 font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2"><Info size={14}/> Waiting for Leader</p></div> 
-                            )
-                            ) : ( 
-                            event.isTeamEvent ? (
-                                <div className="space-y-2">
-                                {createTeamData.eventId === event._id ? (
-                                    <form onSubmit={handleCreateTeam} className="bg-black/40 backdrop-blur-2xl p-3 rounded-2xl border border-white/10 shadow-2xl animate-in slide-in-from-bottom-2">
-                                        <input type="text" placeholder="Enter Squad Name..." className="w-full text-xs p-2.5 bg-white/5 border border-white/10 text-white rounded-xl mb-2 focus:ring-1 focus:ring-orange-500/50 outline-none placeholder-gray-500 font-bold" value={createTeamData.name} onChange={e => setCreateTeamData({...createTeamData, name: e.target.value})} required/>
-                                        <div className="flex gap-2">
-                                            <button className="bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[9px] uppercase tracking-widest py-2.5 rounded-xl font-black flex-1 active:scale-95 transition-all hover:bg-orange-500/20">Create</button>
-                                            <button type="button" onClick={() => setCreateTeamData({ name: '', eventId: '' })} className="bg-white/5 text-gray-400 text-[9px] uppercase tracking-widest py-2.5 rounded-xl font-black border border-white/10 hover:bg-white/10 hover:text-white transition px-4 active:scale-95">Cancel</button>
-                                        </div>
-                                    </form>
-                                ) : (
-                                    <div className="flex gap-2">
-                                        <button onClick={() => setCreateTeamData({...createTeamData, eventId: event._id})} className="flex-[1.5] bg-orange-500/10 hover:bg-orange-500/20 backdrop-blur-md text-orange-400 border border-orange-500/30 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition active:scale-95">Create Squad</button>
-                                        
-                                        <div className="flex-[2] flex items-center bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-0.5 shadow-inner focus-within:border-orange-500/50 transition-colors">
-                                            <input type="text" placeholder="Join Code" className="bg-transparent text-white px-3 w-full outline-none text-[10px] font-bold uppercase tracking-widest placeholder-gray-500" value={joinCode[event._id] || ''} onChange={(e) => setJoinCode({...joinCode, [event._id]: e.target.value})}/>
-                                            <button onClick={() => handleJoinByCode(event._id)} className="bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 p-2 rounded-lg text-orange-400 transition-all active:scale-90"><ArrowRight size={14}/></button>
-                                        </div>
-                                    </div>
-                                )}
-                                </div>
-                            ) : (
-                                <button onClick={() => handleBookTicket(event._id)} className="w-full bg-orange-500/10 hover:bg-orange-500/20 backdrop-blur-md text-orange-400 border border-orange-500/30 py-3.5 rounded-xl font-black text-[11px] uppercase tracking-[0.2em] transition active:scale-95">Register Solo</button> 
-                            )
-                            )}
-                        </div>
                     </div>
                   </div>
                 )
@@ -423,14 +531,17 @@ const Dashboard = () => {
                                 )}
                                 <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-4 rounded-3xl mb-5 flex justify-between items-center shadow-inner">
                                     <div><p className="text-[9px] text-gray-400 uppercase font-black mb-1.5 tracking-widest">Squad Code</p><div className="flex items-center gap-3"><p className="font-mono text-xl font-black tracking-widest text-white select-all">{team.code}</p><button onClick={() => { navigator.clipboard.writeText(team.code); toast.success("Code Copied!"); }} className="text-orange-400 hover:text-white transition-colors bg-white/5 p-1.5 rounded-lg border border-white/10"><Copy size={14}/></button></div></div>
-                                    {isLeader ? <button onClick={() => handleDeleteTeam(team._id)} className="bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/30 p-2.5 rounded-2xl transition active:scale-95"><Trash2 size={18}/></button> : <button onClick={() => handleLeaveTeam(team._id)} className="bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/30 p-2.5 rounded-2xl transition active:scale-95"><LogOut size={18}/></button>}
+                                    {!hasTicket && (
+                                        isLeader ? <button onClick={() => handleDeleteTeam(team._id)} className="bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/30 p-2.5 rounded-2xl transition active:scale-95"><Trash2 size={18}/></button> 
+                                                 : <button onClick={() => handleLeaveTeam(team._id)} className="bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/30 p-2.5 rounded-2xl transition active:scale-95"><LogOut size={18}/></button>
+                                    )}
                                 </div>
                                 <div className="space-y-3">
                                     <div className="flex justify-between items-center px-1 mb-2">
                                         <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Squad Roster</p>
                                         <div className="flex items-center gap-2">
                                             <button onClick={() => openGroupChat(team)} className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-purple-400 bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20 px-2.5 py-1.5 rounded-xl transition active:scale-95 shadow-sm"><MessageCircle size={12}/> Chat</button>
-                                            {isLeader && <button onClick={() => navigate(`/finder?eventId=${fullEvent?._id}`)} className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-orange-400 bg-orange-500/10 border border-orange-500/20 hover:bg-orange-500/20 px-2.5 py-1.5 rounded-xl transition active:scale-95 shadow-sm"><UserPlus size={12}/> Add</button>}
+                                            {isLeader && !hasTicket && <button onClick={() => navigate(`/finder?eventId=${fullEvent?._id}`)} className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-orange-400 bg-orange-500/10 border border-orange-500/20 hover:bg-orange-500/20 px-2.5 py-1.5 rounded-xl transition active:scale-95 shadow-sm"><UserPlus size={12}/> Add</button>}
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -443,8 +554,7 @@ const Dashboard = () => {
                                                 </span>
                                                 <div className="flex items-center gap-1.5">
                                                     {!isMe && <button onClick={() => openChat(m._id, m.name)} className="text-gray-400 hover:text-orange-400 transition active:scale-90 bg-white/5 p-1.5 rounded-xl border border-white/5" title="Direct Message"><MessageCircle size={14}/></button>}
-                                                    {/* 🔥 FIX: Added the Remove Button for Leaders right here! */}
-                                                    {isLeader && !isMe && (
+                                                    {isLeader && !isMe && !hasTicket && (
                                                         <button onClick={() => handleRemoveMember(team._id, m._id)} className="text-red-400 hover:bg-red-500/20 transition active:scale-90 bg-red-500/10 p-1.5 rounded-xl border border-red-500/20" title="Remove Member">
                                                             <X size={14}/>
                                                         </button>

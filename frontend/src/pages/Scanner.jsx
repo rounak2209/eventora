@@ -3,7 +3,7 @@ import { Scanner } from '@yudiel/react-qr-scanner';
 import { verifyTicket } from '../api'; 
 import { toast } from 'react-hot-toast';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { XCircle, CheckCircle, LogOut, ArrowLeft } from 'lucide-react'; // 🔥 REMOVED ScanFocus completely!
+import { XCircle, CheckCircle, LogOut, ArrowLeft } from 'lucide-react'; 
 
 const ScannerPage = () => {
   const [scanResult, setScanResult] = useState(null); 
@@ -14,7 +14,7 @@ const ScannerPage = () => {
   const navigate = useNavigate();
   const location = useLocation(); 
 
-  // Dashboard se Event Name aur ID uthao
+
   const eventName = location.state?.eventName || "General Entry";
   const currentEventId = location.state?.eventId; 
 
@@ -123,7 +123,7 @@ const ScannerPage = () => {
 
       {/* Header */}
       <div className="mt-8 mb-8 text-center px-4">
-        {/* 🔥 EXPERT FIX: Replaced ScanFocus with an animated glowing dot to prevent any Lucide errors! */}
+
         <div className="inline-flex items-center gap-2 bg-black/50 backdrop-blur-md border border-orange-500/30 text-orange-400 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-4 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
             <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.8)]"></div> 
             Scanner Active

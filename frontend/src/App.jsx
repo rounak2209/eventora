@@ -4,7 +4,6 @@ import Navbar from './components/Navbar';
 import { Toaster } from 'react-hot-toast';
 import ProtectedRoute from './components/ProtectedRoute';
 
-// --- SARE PAGES KA IMPORT ---
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -14,68 +13,64 @@ import OrganizerDashboard from './pages/OrganizerDashboard';
 import CreateEvent from './pages/CreateEvent';
 import GatekeeperDashboard from './pages/GatekeeperDashboard';
 import Scanner from './pages/Scanner';
-import Profile from './pages/Profile'; // 🔥 Added Profile import
+import Profile from './pages/Profile';
 
-// 🛡️ PUBLIC ROUTE HELPER:
-// Iska kaam hai ki agar banda pehle se login hai, toh wo wapas login/register page na dekh sake.
-// Seedha uske dashboard pe dhakka de do!
+
 const PublicRoute = ({ children }) => {
   const token = localStorage.getItem('token');
   const role = localStorage.getItem('role');
   
   if (token && role) {
-    // Role ke hisaab se sahi dashboard ka rasta dikhao
+
     const dashboard = role === 'organizer' ? '/organizer-dashboard' : 
                       role === 'gatekeeper' ? '/gatekeeper-dashboard' : 
                       '/student-dashboard';
     return <Navigate to={dashboard} replace />;
   }
-  // Agar login nahi hai, toh maze se page dekhne do
+
   return children;
 };
 
 function App() {
   return (
-    // 🔥 BAS YAHAN CHANGE KIYA HAI: bg-gray-50 ko bg-transparent kiya hai
-    // Isse tumhari CSS wali image background mein dikhne lagegi!
+
     <div className="min-h-screen bg-transparent">
       
-      {/* 🧭 Top Navigation Bar jo har page pe rahega */}
+      {/* Top Navigation Bar jo har page pe rahega */}
       <Navbar />
-      
-      {/* 🔔 Notifications (Toasts) ka global setup */}
-      <Toaster 
-        position="top-center" 
-        toastOptions={{ 
+
+      {/* Notifications (Toasts) ka global setup */}
+      <Toaster
+        position="top-center"
+        toastOptions={{
           duration: 3000,
           style: { borderRadius: '10px' } 
         }} 
       />
 
-      {/* 🚀 ROUTING LOGIC START */}
+      {/* ROUTING LOGIC START */}
       <Routes>
-        {/* ========================================== */}
-        {/* 🏠 PUBLIC ROUTES (Landing Page)           */}
-        {/* ========================================== */}
-        {/* Logout ke baad banda yahin aayega (Professional Home) */}
+
+        {/*  PUBLIC ROUTES (Landing Page)           */}
+
         <Route path="/" element={<Home />} />
         
-        {/* Login aur Register ko PublicRoute mein dala hai safety ke liye */}
+
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
 
-        {/* ========================================== */}
-        {/* 🌟 UNIVERSAL ROUTE (Sabke Liye)            */}
-        {/* ========================================== */}
+
+        {/* UNIVERSAL ROUTE (Sabke Liye)            */}
+
         <Route path="/profile" element={
           <ProtectedRoute>
             <Profile />
           </ProtectedRoute>
         } />
 
-        {/* ========================================== */}
-        {/* 🎓 STUDENT ZONE (Sirf Students ke liye)     */}
-        {/* ========================================== */}
+
+        {/*  STUDENT ZONE (Sirf Students ke liye)     */}
+
         <Route path="/student-dashboard" element={
           <ProtectedRoute allowedRole="student">
             <Dashboard />
@@ -87,9 +82,9 @@ function App() {
           </ProtectedRoute>
         } />
 
-        {/* ========================================== */}
-        {/* 🛠️ ORGANIZER ZONE (Sirf Organizers ke liye) */}
-        {/* ========================================== */}
+
+        {/* ORGANIZER ZONE (Sirf Organizers ke liye) */}
+
         <Route path="/organizer-dashboard" element={
           <ProtectedRoute allowedRole="organizer">
             <OrganizerDashboard />
@@ -101,9 +96,9 @@ function App() {
           </ProtectedRoute>
         } />
 
-        {/* ========================================== */}
-        {/* 🛡️ GATEKEEPER ZONE (Sirf Staff ke liye)    */}
-        {/* ========================================== */}
+
+        {/* GATEKEEPER ZONE (Sirf Staff ke liye)    */}
+
         <Route path="/gatekeeper-dashboard" element={
           <ProtectedRoute allowedRole="gatekeeper">
             <GatekeeperDashboard />
@@ -115,10 +110,10 @@ function App() {
           </ProtectedRoute>
         } />
 
-        {/* ========================================== */}
-        {/* 🚫 FALLBACK (Agar rasta bhatak jaye)       */}
-        {/* ========================================== */}
-        {/* Koi bhi random URL daalne par seedha Landing Page pe bhej do */}
+
+
+
+
         <Route path="*" element={<Navigate to="/" replace />} />
 
       </Routes>

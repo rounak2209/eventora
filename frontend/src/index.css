@@ -2,38 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 🔥 1. GLOBAL BACKGROUND: Real Image + Dark Overlay */
+
 body {
-  /* Agar internet slow ho aur image load na ho, toh ye dark color dikhega */
+
   background-color: #0b0d14; 
   
-  /* Image ke upar halka dark gradient (parda) taaki text saaf padhne mein aaye */
+
   background-image: 
     linear-gradient(to bottom, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.4)),
     url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=2070&auto=format&fit=crop'); 
   
   background-size: cover;
   background-position: center;
-  background-attachment: fixed; /* Scroll karne par image fixed rahegi */
+  background-attachment: fixed;
   background-repeat: no-repeat;
   
-  /* Text color ko white/light-gray kar diya taaki dark theme pe dikhe */
+
   color: #e5e7eb; 
   min-height: 100vh;
 }
 
-/* 🔥 2. DARK GLASS PANEL */
 .glass-panel {
-  /* White (255) color use kiya hai but opacity sirf 5% (0.05) hai */
+
   background: rgba(255, 255, 255, 0.05); 
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4); /* Shadow ko dark kiya */
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4); 
   border-radius: 1.5rem;
 }
 
-/* 🔥 3. DARK GLASS CARD (With Hover Glow) */
+
 .glass-card {
   background: rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(12px);
@@ -46,8 +45,7 @@ body {
 
 .glass-card:hover {
   transform: translateY(-5px);
-  background: rgba(255, 255, 255, 0.08); /* Hover pe thoda zyada chamkega */
+  background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.15);
-  /* 🔥 Premium Orange Glow: Hamari theme ke hisaab se hover shadow orange/amber kar diya */
-  box-shadow: 0 10px 25px rgba(245, 158, 11, 0.2); 
+  box-shadow: 0 10px 25px rgba(245, 158, 11, 0.2);
 }

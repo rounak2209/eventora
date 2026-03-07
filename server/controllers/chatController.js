@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const Message = require('../models/Message');
 const User = require('../models/User');
-const Team = require('../models/Team'); // 🔥 Import Team Model
+const Team = require('../models/Team'); 
 
 // 1. Get Chat History (Specific User ke sath)
 const getChatHistory = async (req, res) => {
@@ -51,13 +51,13 @@ const markAsRead = async (req, res) => {
     }
 }
 
-// 🔥 3. GET INBOX CONVERSATIONS (Filtered: No Teammates)
+//  3. GET INBOX CONVERSATIONS (Filtered: No Teammates)
 const getInboxConversations = async (req, res) => {
     try {
         const myId = req.user._id;
 
         // --- STEP 1: Find all my Teammates ---
-        // Wo saari teams dhundo jaha main Member hu ya Leader hu
+
         const myTeams = await Team.find({
             $or: [
                 { members: myId },
@@ -69,7 +69,7 @@ const getInboxConversations = async (req, res) => {
         
         // Saare teammates ki IDs collect karo
         myTeams.forEach(team => {
-            // Add Leader (agar main khud leader nahi hu)
+
             if (team.leader && String(team.leader) !== String(myId)) {
                 teammateIds.push(String(team.leader));
             }
@@ -81,8 +81,7 @@ const getInboxConversations = async (req, res) => {
             });
         });
 
-        // Convert to ObjectId for MongoDB Filter
-        // Set use karke duplicates hata diye
+
         const excludeIds = [...new Set(teammateIds)].map(id => new mongoose.Types.ObjectId(id));
 
         // --- STEP 2: Aggregate Messages with Filter ---
@@ -120,7 +119,7 @@ const getInboxConversations = async (req, res) => {
                     }
                 }
             },
-            // 🔥 FILTER STAGE: Exclude users who are in my Teammate List
+            // FILTER STAGE: Exclude users who are in my Teammate List
             {
                 $match: {
                     otherUserId: { $nin: excludeIds } 

@@ -9,9 +9,10 @@ import {
     addGatekeeper,
     deleteEvent,
     updateEvent,
-    updateGatekeeper, // 🔥 Imported updateGatekeeper
-    deleteGatekeeper  // 🔥 Imported deleteGatekeeper
+    updateGatekeeper,
+    deleteGatekeeper
 } from '../api'; 
+import AIInsights from '../components/AIInsights';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { saveAs } from 'file-saver';
 import { useNavigate, Link } from 'react-router-dom'; 
@@ -28,7 +29,7 @@ const OrganizerDashboard = () => {
   const [stats, setStats] = useState(null);
   const [gatekeepers, setGatekeepers] = useState([]); 
   
-  // 🔥 Navigation State
+
   const [activeTab, setActiveTab] = useState('analytics'); 
 
   // Loaders
@@ -37,7 +38,7 @@ const OrganizerDashboard = () => {
   
   const [sendingCerts, setSendingCerts] = useState(false);
   
-  // 🔥 Gatekeeper Modal States
+  // Gatekeeper Modal States
   const [showGatekeeperForm, setShowGatekeeperForm] = useState(false);
   const [isEditingGk, setIsEditingGk] = useState(false);
   const [editingGkId, setEditingGkId] = useState(null);
@@ -133,7 +134,7 @@ const OrganizerDashboard = () => {
     }
   };
 
-  // 🔥 GATEKEEPER LOGIC
+  // GATEKEEPER LOGIC
 
   const toggleEventSelection = (eventId) => {
     const currentIds = gkData.assignedEventIds;
@@ -181,7 +182,7 @@ const OrganizerDashboard = () => {
       setGkData({
           name: gk.name,
           email: gk.email,
-          password: '', // Not needed for update
+          password: '', 
           assignedEventIds: gk.assignedEvents ? gk.assignedEvents.map(ev => ev._id) : []
       });
       setEditingGkId(gk._id);
@@ -265,7 +266,7 @@ const OrganizerDashboard = () => {
       return (
         <div className="min-h-screen flex items-center justify-center bg-transparent backdrop-blur-md">
             <div className="flex flex-col items-center gap-4">
-                <div className="w-10 h-10 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin shadow-[0_0_20px_rgba(245,158,11,0.3)]"></div>
+                <div className="w-10 h-10 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin shadow-[0_0_20px_rgba(245, 158, 11, 0.3)]"></div>
                 <p className="font-black text-orange-400 text-[10px] uppercase tracking-[0.2em] animate-pulse">Loading Hub...</p>
             </div>
         </div>
@@ -274,7 +275,7 @@ const OrganizerDashboard = () => {
 
   const deptData = stats?.departments ? Object.entries(stats.departments).map(([key, val]) => ({ name: key, count: val })) : [];
   const hasDeptData = deptData.some(d => d.count > 0);
-  const hasGenderData = stats && ((stats.male || 0) > 0 || (stats.female || 0) > 0);
+  const hasGenderData = stats && stats.gender && ((stats.gender.Male || 0) > 0 || (stats.gender.Female || 0) > 0);
 
   return (
     <div className="p-6 md:p-10 bg-transparent min-h-screen relative text-gray-100 font-sans selection:bg-orange-500/30 overflow-x-hidden z-10">
@@ -295,7 +296,7 @@ const OrganizerDashboard = () => {
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
             <div className="flex items-center gap-4">
-                <div className="bg-orange-500/10 border border-orange-500/30 p-3 rounded-2xl shadow-[0_0_15px_rgba(245,158,11,0.15)]">
+                <div className="bg-orange-500/10 border border-orange-500/30 p-3 rounded-2xl shadow-[0_0_15px_rgba(245, 158, 11, 0.15)]">
                     <LayoutDashboard size={28} className="text-orange-400" />
                 </div>
                 <div>
@@ -325,9 +326,9 @@ const OrganizerDashboard = () => {
             </div>
         </div>
 
-        {/* ========================================================= */}
-        {/* 📊 TAB 1: ANALYTICS                                       */}
-        {/* ========================================================= */}
+
+        {/* TAB 1: ANALYTICS                                       */}
+
         {activeTab === 'analytics' && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="bg-white/5 backdrop-blur-2xl border border-white/10 border-t-white/20 p-5 rounded-[2rem] shadow-[0_8px_32px_rgba(0,0,0,0.3)] mb-10 flex flex-col lg:flex-row justify-between items-center gap-5 hover:bg-white/10 transition-all duration-300">
@@ -359,7 +360,7 @@ const OrganizerDashboard = () => {
                         <button 
                             onClick={handleSendCertificates} 
                             disabled={sendingCerts}
-                            className={`flex items-center gap-2 px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-all border ${sendingCerts ? 'bg-white/5 border-white/10 text-gray-500 cursor-not-allowed' : 'bg-orange-500/10 border-orange-500/30 text-orange-400 hover:bg-orange-500/20 hover:shadow-[0_0_20px_rgba(245,158,11,0.2)] active:scale-95'}`}
+                            className={`flex items-center gap-2 px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-all border ${sendingCerts ? 'bg-white/5 border-white/10 text-gray-500 cursor-not-allowed' : 'bg-orange-500/10 border-orange-500/30 text-orange-400 hover:bg-orange-500/20 hover:shadow-[0_0_20px_rgba(245, 158, 11, 0.2)] active:scale-95'}`}
                         >
                             <Award size={14} /> 
                             {sendingCerts ? "Processing..." : "Issue Certificates"}
@@ -395,7 +396,7 @@ const OrganizerDashboard = () => {
                         </div>
 
                         {/* GRAPHS SECTION */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-16">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
                             <div className="bg-white/5 backdrop-blur-2xl p-8 rounded-[2.5rem] shadow-[0_8px_32px_rgba(0,0,0,0.3)] border border-white/10 border-t-white/20 hover:bg-white/10 transition-all duration-300 flex flex-col min-h-[350px]">
                                 <div className="flex items-center gap-2 mb-6">
                                     <BarChart3 size={18} className="text-orange-400" />
@@ -432,28 +433,40 @@ const OrganizerDashboard = () => {
                                 <div className="flex-1 w-full h-full relative">
                                     {hasGenderData ? (
                                         <ResponsiveContainer width="100%" height="100%">
-                                        <PieChart>
-                                            <Pie 
-                                            data={[
-                                                { name: 'Male', value: stats.male || 0 },
-                                                { name: 'Female', value: stats.female || 0 }
-                                            ]} 
-                                            cx="50%" cy="50%" 
-                                            innerRadius={70}
-                                            outerRadius={100} 
-                                            paddingAngle={8}
-                                            dataKey="value"
-                                            stroke="rgba(0,0,0,0)"
-                                            >
-                                            <Cell fill="#f97316" /> 
-                                            <Cell fill="#fbbf24" /> 
-                                            </Pie>
-                                            <Tooltip 
-                                            contentStyle={{ backgroundColor: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(10px)', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '1rem', color: '#fff', fontWeight: 'bold' }}
-                                            />
-                                            <Legend verticalAlign="bottom" wrapperStyle={{ color: '#d1d5db', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', paddingTop: '20px' }} />
-                                        </PieChart>
-                                        </ResponsiveContainer>
+    <PieChart>
+        <Pie 
+            data={[
+                { name: 'Male', value: stats.gender.Male || 0 },
+                { name: 'Female', value: stats.gender.Female || 0 }
+            ]} 
+            cx="50%" cy="50%" 
+            innerRadius={70}
+            outerRadius={100} 
+            paddingAngle={8}
+            dataKey="value"
+            stroke="rgba(0,0,0,0)"
+        >
+            <Cell fill="#f97316" /> 
+            <Cell fill="#fbbf24" /> 
+        </Pie>
+        
+
+        <Tooltip 
+            contentStyle={{ 
+                backgroundColor: 'rgba(15, 23, 42, 0.95)', 
+                backdropFilter: 'blur(10px)', 
+                borderColor: 'rgba(255,255,255,0.1)', 
+                borderRadius: '12px',
+                padding: '10px 15px',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.5)'
+            }}
+            itemStyle={{ color: '#ffffff', fontWeight: '900', fontSize: '14px' }}
+            labelStyle={{ display: 'none' }} 
+        />
+        
+        <Legend verticalAlign="bottom" wrapperStyle={{ color: '#d1d5db', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', paddingTop: '20px' }} />
+    </PieChart>
+</ResponsiveContainer>
                                     ) : (
                                         <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
                                             <PieChartIcon size={32} className="mb-2 opacity-30"/>
@@ -462,6 +475,11 @@ const OrganizerDashboard = () => {
                                     )}
                                 </div>
                             </div>
+                        </div>
+
+                        {/* AI INSIGHTS SECTION */}
+                        <div className="mb-16">
+                            <AIInsights eventId={selectedEventId} />
                         </div>
                     </>
                 ) : (
@@ -473,9 +491,8 @@ const OrganizerDashboard = () => {
             </div>
         )}
 
-        {/* ========================================================= */}
-        {/* 🎫 TAB 2: MY EVENTS                                       */}
-        {/* ========================================================= */}
+    
+        {/* TAB 2: MY EVENTS                                       */}
         {activeTab === 'events' && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="flex justify-between items-center mb-8">
@@ -563,9 +580,7 @@ const OrganizerDashboard = () => {
             </div>
         )}
 
-        {/* ========================================================= */}
-        {/* 🛡️ TAB 3: GATEKEEPER MANAGEMENT (🔥 NOW WITH EDIT/DELETE) */}
-        {/* ========================================================= */}
+        {/* TAB 3: GATEKEEPER MANAGEMENT ( NOW WITH EDIT/DELETE) */}
         {activeTab === 'gatekeepers' && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 mb-10">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 border-l-4 border-orange-500 pl-4">
@@ -586,7 +601,7 @@ const OrganizerDashboard = () => {
                         gatekeepers.map((gk) => (
                             <div key={gk._id} className="relative bg-white/5 backdrop-blur-2xl p-6 rounded-[2rem] shadow-[0_8px_32px_rgba(0,0,0,0.3)] border border-white/10 border-t-white/20 hover:bg-white/10 hover:border-white/30 transition-all flex flex-col gap-4 group">
                                 
-                                {/* 🔥 NEW: Hover Actions (Edit & Delete) */}
+
                                 <div className="absolute top-4 right-4 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
                                     <button 
                                         onClick={() => handleEditGatekeeperClick(gk)} 
@@ -640,9 +655,9 @@ const OrganizerDashboard = () => {
             </div>
         )}
 
-        {/* ========================================================= */}
-        {/* ✏️ 🔥 EDIT EVENT MODAL                                    */}
-        {/* ========================================================= */}
+
+        {/* EDIT EVENT MODAL                                    */}
+
         {editingEvent && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4 overflow-y-auto">
                 <div className="bg-white/5 backdrop-blur-3xl border border-white/10 border-t-white/20 p-6 md:p-8 rounded-[2rem] shadow-[0_30px_60px_rgba(0,0,0,0.8)] w-full max-w-3xl relative animate-in zoom-in-95 duration-300 my-8">
@@ -735,9 +750,7 @@ const OrganizerDashboard = () => {
             </div>
         )}
 
-        {/* ========================================================= */}
-        {/* 🔥 ADD/EDIT GATEKEEPER MODAL                              */}
-        {/* ========================================================= */}
+        {/* ADD/EDIT GATEKEEPER MODAL                              */}
         {showGatekeeperForm && (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex justify-center items-center z-50 animate-in fade-in duration-200 p-4">
                 <div className="bg-white/5 backdrop-blur-3xl border border-white/10 border-t-white/20 p-6 rounded-[2rem] shadow-[0_30px_60px_rgba(0,0,0,0.8)] w-full max-w-[380px] relative animate-in zoom-in-95 duration-300">

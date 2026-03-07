@@ -70,18 +70,18 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 🔥 NEW: Handle "Mark as Read" (Blue Tick Logic)
+    // Handle "Mark as Read" (Blue Tick Logic)
     socket.on("mark_as_read", async ({ senderId, recipientId }) => {
         try {
-            // Database me update karo ki messages padh liye gaye
-            // (senderId = Jisne message bheja tha, recipientId = Main hu jo padh raha hu)
+            // Database me update kar rhe h ki messages padh liye gaye
+            // (senderId = who sent message, recipientId = me who is reading)
             await Message.updateMany(
                 { sender: senderId, recipient: recipientId, read: false },
                 { $set: { read: true } }
             );
 
-            // Sender ko batao ki "Tumhare messages padh liye gaye"
-            // Taaki wo apni screen par Blue Tick dikha sake
+            // told sender that my message is read
+            // for showing blue tick
             io.to(senderId).emit("messages_read_update", { readBy: recipientId });
 
         } catch (err) {
@@ -92,7 +92,7 @@ io.on('connection', (socket) => {
     socket.on("disconnect", () => { });
 });
 
-// --- 5. ROUTES ---
+
 const authRoutes = require('./routes/authRoutes');
 const ticketRoutes = require('./routes/ticketRoutes'); 
 const eventRoutes = require('./routes/eventRoutes');
@@ -101,6 +101,8 @@ const certRoutes = require('./routes/certRoutes');
 const finderRoutes = require('./routes/finderRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const chatRoutes = require('./routes/chatRoutes'); 
+const aiRoutes = require('./routes/aiRoutes');
+
 
 app.use('/api/auth', authRoutes);
 app.use('/api/ticket', ticketRoutes); 
@@ -110,13 +112,14 @@ app.use('/api/teams', teamRoutes);
 app.use('/api/certificate', certRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/chat', chatRoutes); 
+app.use('/api/ai', aiRoutes);
 
 app.get('/', (req, res) => {
   res.send('Eventora Server is Running! 🚀');
 });
 
 app.use((err, req, res, next) => {
-    console.error(err.stack);
+    console.error(err.message);
     res.status(500).json({ message: 'Internal Server Error' });
 });
 

@@ -1,20 +1,22 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { updateProfile, updatePassword } from '../api';
 import { toast } from 'react-hot-toast';
-import { Check, Edit3, Lock, Key } from 'lucide-react'; 
+import { Check, Edit3, Lock, Key, Camera } from 'lucide-react'; // Camera Added
 import AuthContext from '../context/AuthContext';
 
 const Profile = () => {
   const { user } = useContext(AuthContext);
   
-  // States
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileData, setProfileData] = useState({ bio: '', skills: '', isLookingForTeam: true });
   
+  // 🔥 Profile Photo States
+  const [profilePicFile, setProfilePicFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+
   const [isEditingPassword, setIsEditingPassword] = useState(false);
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
 
-  // Sync context data to state when loaded
   useEffect(() => {
     if (user) {
         setProfileData({
@@ -22,20 +24,37 @@ const Profile = () => {
             skills: user.skills?.join(', ') || '',
             isLookingForTeam: user.isLookingForTeam !== false
         });
+        setPreviewUrl(user.profilePic || ''); // Existing picture set
     }
   }, [user]);
 
-  // Profile Update API
+  // Handle Photo Selection
+  const handleFileChange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+          setProfilePicFile(file);
+          setPreviewUrl(URL.createObjectURL(file));
+      }
+  };
+
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
     const tid = toast.loading("Updating profile...");
     try {
+        const submitData = new FormData();
+        submitData.append('bio', profileData.bio);
+        submitData.append('isLookingForTeam', profileData.isLookingForTeam);
+        
         const skillsArray = profileData.skills.split(',').map(s => s.trim()).filter(s => s);
-        await updateProfile({ 
-            bio: profileData.bio, 
-            skills: skillsArray,
-            isLookingForTeam: profileData.isLookingForTeam 
-        });
+        // Map skills cleanly for backend array parsing
+        skillsArray.forEach(skill => submitData.append('skills', skill));
+        
+        if (profilePicFile) {
+            submitData.append('profilePic', profilePicFile);
+        }
+
+        await updateProfile(submitData);
+
         toast.dismiss(tid);
         toast.success("Profile Updated! 🚀");
         setIsEditingProfile(false);
@@ -46,7 +65,6 @@ const Profile = () => {
     }
   };
 
-  // Password Update API
   const handlePasswordUpdate = async (e) => {
       e.preventDefault();
       if (passwordData.newPassword !== passwordData.confirmPassword) {
@@ -76,7 +94,6 @@ const Profile = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 bg-transparent min-h-screen relative text-gray-100 selection:bg-orange-500/30 overflow-hidden z-10">
       
-      {/* Background Subtle Glows */}
       <div className="absolute top-[10%] left-[-5%] w-[500px] h-[500px] bg-orange-600/5 rounded-full blur-[150px] pointer-events-none -z-10"></div>
 
       <div className="mb-10 text-center">
@@ -85,8 +102,7 @@ const Profile = () => {
       </div>
 
       <div className="max-w-xl mx-auto bg-white/5 backdrop-blur-2xl p-8 rounded-[2.5rem] shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] border border-white/10 border-t-white/20 animate-in fade-in zoom-in-95 duration-500">
-             
-         {/* MAIN PROFILE SECTION */}
+         
          <div className="flex justify-between items-center border-b border-white/10 pb-4 mb-6">
              <h2 className="text-xl font-black text-white drop-shadow-md uppercase tracking-widest">Account Details</h2>
              {!isEditingProfile && (
@@ -96,12 +112,33 @@ const Profile = () => {
              )}
          </div>
 
+         {/* BEAUTIFUL PROFILE HEADER WITH AVATAR */}
+         <div className="flex items-center gap-6 mb-8">
+             <div className="relative group shrink-0">
+                 {previewUrl ? (
+                     <img src={previewUrl} className="w-24 h-24 rounded-[1.5rem] object-cover shadow-[0_0_15px_rgba(245,158,11,0.15)] border border-white/10" alt="Profile" />
+                 ) : (
+                     <div className="w-24 h-24 rounded-[1.5rem] bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400 font-black text-4xl shadow-inner">
+                         {user?.name?.[0]?.toUpperCase()}
+                     </div>
+                 )}
+                 {isEditingProfile && (
+                     <label className="absolute inset-0 bg-black/60 rounded-[1.5rem] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer border border-dashed border-white/30 backdrop-blur-sm">
+                         <Camera size={24} className="text-white drop-shadow-md" />
+                         <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                     </label>
+                 )}
+             </div>
+             <div className="overflow-hidden">
+                 <h2 className="text-2xl font-black text-white drop-shadow-md uppercase tracking-widest truncate">{user?.name}</h2>
+                 <span className="bg-orange-500/20 text-orange-400 text-[10px] px-3 py-1 rounded-lg uppercase tracking-widest font-black border border-orange-500/30 mt-2 inline-block shadow-sm">
+                     {user?.role}
+                 </span>
+             </div>
+         </div>
+
          {isEditingProfile ? (
              <form onSubmit={handleProfileUpdate} className="space-y-5 animate-in fade-in">
-                <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Full Name</label>
-                    <div className="p-4 bg-white/[0.02] border border-white/5 rounded-xl font-bold text-gray-500 mt-1.5 cursor-not-allowed">{user?.name}</div>
-                </div>
                 <div>
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Email Address</label>
                     <div className="p-4 bg-white/[0.02] border border-white/5 rounded-xl font-bold text-gray-500 mt-1.5 cursor-not-allowed">{user?.email}</div>
@@ -132,18 +169,11 @@ const Profile = () => {
 
                 <div className="flex gap-3 pt-4 mt-4 border-t border-white/10">
                     <button type="submit" className="flex-[2] bg-orange-500/10 text-orange-400 border border-orange-500/30 py-3 rounded-xl font-black text-[11px] uppercase tracking-[0.2em] hover:bg-orange-500/20 transition active:scale-95 shadow-md">Save Profile</button>
-                    <button type="button" onClick={() => setIsEditingProfile(false)} className="flex-1 bg-white/5 text-gray-400 border border-white/10 py-3 rounded-xl font-black text-[11px] uppercase tracking-[0.2em] hover:bg-white/10 hover:text-white transition active:scale-95">Cancel</button>
+                    <button type="button" onClick={() => { setIsEditingProfile(false); setPreviewUrl(user.profilePic || ''); setProfilePicFile(null); }} className="flex-1 bg-white/5 text-gray-400 border border-white/10 py-3 rounded-xl font-black text-[11px] uppercase tracking-[0.2em] hover:bg-white/10 hover:text-white transition active:scale-95">Cancel</button>
                 </div>
              </form>
          ) : (
              <div className="space-y-6 animate-in fade-in">
-                <div>
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Full Name</label>
-                    <div className="p-4 bg-white/5 border border-white/10 shadow-[inset_0_1px_3px_rgba(0,0,0,0.3)] rounded-xl font-bold text-white mt-1.5 flex justify-between">
-                        {user?.name}
-                        <span className="bg-orange-500/20 text-orange-400 text-[9px] px-2 py-1 rounded-md uppercase tracking-widest">{user?.role}</span>
-                    </div>
-                </div>
                 <div>
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Email Address</label>
                     <div className="p-4 bg-white/5 border border-white/10 shadow-[inset_0_1px_3px_rgba(0,0,0,0.3)] rounded-xl font-bold text-gray-300 mt-1.5">{user?.email}</div>
@@ -178,7 +208,7 @@ const Profile = () => {
              </div>
          )}
 
-         {/* 🔥 SECURITY & PASSWORD SECTION */}
+         {/* SECURITY & PASSWORD SECTION */}
          <div className="mt-10 border-t border-white/10 pt-8">
              <div className="flex justify-between items-center mb-6">
                  <h3 className="text-lg font-black text-white drop-shadow-md uppercase tracking-widest flex items-center gap-2">

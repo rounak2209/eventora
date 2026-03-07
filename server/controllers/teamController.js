@@ -1,5 +1,6 @@
 const Team = require('../models/Team');
 const Event = require('../models/Event');
+const Registration = require('../models/Registration'); 
 
 // ============================================================
 // 1. CREATE TEAM
@@ -9,18 +10,18 @@ const createTeam = async (req, res) => {
     const { name, eventId, description, requiredSkills, requiredYear, skillMatchMode } = req.body;
     const userId = req.user._id;
 
-    // A. Check: Event exist karta hai?
+
     const event = await Event.findById(eventId);
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
     }
 
-    // 🔥 Check: Agar Solo Event hai, to Team banane mat do
+
     if (event.isTeamEvent === false) {
       return res.status(400).json({ message: "This is a Solo Event. Teams are not allowed." });
     }
 
-    // B. Check: Kya banda pehle se is event ki kisi team mein hai?
+
     const existingTeam = await Team.findOne({ 
       event: eventId, 
       members: userId 
@@ -30,10 +31,10 @@ const createTeam = async (req, res) => {
       return res.status(400).json({ message: "You are already in a team for this event!" });
     }
 
-    // C. Unique Code Generation
+
     const code = "TEAM-" + Math.floor(1000 + Math.random() * 9000);
 
-    // D. Team Save karo
+
     const team = await Team.create({
       name,
       code, 
@@ -66,7 +67,7 @@ const joinTeam = async (req, res) => {
     const { teamCode, eventId } = req.body;
     const userId = req.user._id;
 
-    // A. Team dhundo (Case insensitive matching safe side ke liye)
+    // A. Team dhund rhe
     const team = await Team.findOne({ 
         code: teamCode.toUpperCase(), 
         event: eventId 
@@ -76,6 +77,10 @@ const joinTeam = async (req, res) => {
       return res.status(404).json({ message: "Invalid Code or Team doesn't exist for this event." });
     }
 
+    if (!team.isOpen) {
+        return res.status(403).json({ message: "Entry Closed! This squad has already booked their tickets." });
+    }
+    
     // B. Fetch Event details for team size limit
     const event = await Event.findById(eventId);
     if (!event) return res.status(404).json({ message: "Event not found" });
@@ -134,8 +139,17 @@ const leaveTeam = async (req, res) => {
     const team = await Team.findById(teamId);
     if (!team) return res.status(404).json({ message: "Team not found" });
 
-    // Remove User logic
+    // API LOCK: Cannot leave a finalized team
+    if (!team.isOpen) {
+        return res.status(403).json({ message: "Entry is finalized. You cannot leave this team now." });
+    }
+
+
     team.members = team.members.filter(id => id.toString() !== userId.toString());
+
+    // Delete registration/ticket & remove from event participants
+    await Registration.deleteOne({ event: team.event, user: userId });
+    await Event.findByIdAndUpdate(team.event, { $pull: { participants: userId } });
 
     // Agar koi bacha hi nahi, delete team
     if (team.members.length === 0) {
@@ -167,6 +181,11 @@ const removeMember = async (req, res) => {
     const team = await Team.findById(teamId);
     if (!team) return res.status(404).json({ message: "Team not found" });
 
+    //  API LOCK: Cannot kick members from a finalized team
+    if (!team.isOpen) {
+        return res.status(403).json({ message: "Entry is finalized. You cannot remove members now." });
+    }
+
     // Auth Check
     if (team.leader.toString() !== userId.toString()) {
       return res.status(403).json({ message: "Action denied. Only the leader can remove members." });
@@ -178,6 +197,10 @@ const removeMember = async (req, res) => {
 
     team.members = team.members.filter(id => id.toString() !== memberId.toString());
     await team.save();
+
+    // SMART CLEANUP: Removed member ki ticket delete karo aur event se hatao
+    await Registration.deleteOne({ event: team.event, user: memberId });
+    await Event.findByIdAndUpdate(team.event, { $pull: { participants: memberId } });
 
     res.json({ message: "Member removed from squad." });
 
@@ -197,15 +220,31 @@ const deleteTeam = async (req, res) => {
     const team = await Team.findById(teamId);
     if (!team) return res.status(404).json({ message: "Team not found" });
 
+    // API LOCK: Cannot delete a finalized team
+    if (!team.isOpen) {
+        return res.status(403).json({ message: "Entry is finalized. You cannot disband this team now." });
+    }
+
     // Auth Check
     if (team.leader.toString() !== userId.toString()) {
       return res.status(403).json({ message: "Action denied. Only the leader can disband the team." });
     }
 
+    // MASTER CLEANUP: Delete all registrations for this team
+    await Registration.deleteMany({ event: team.event, user: { $in: team.members } });
+    
+    // Remove all team members from the Event's participants list at once
+    await Event.findByIdAndUpdate(team.event, { 
+        $pull: { participants: { $in: team.members } } 
+    });
+
+    // Finally team delete karo
     await Team.findByIdAndDelete(teamId);
+    
     res.json({ message: "Team has been disbanded successfully." });
 
   } catch (error) {
+    console.error("Delete Team Error:", error);
     res.status(500).json({ message: error.message });
   }
 };

@@ -19,7 +19,7 @@ const requestSchema = new mongoose.Schema({
   sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   type: {
     type: String,
-    enum: ['JOIN_REQUEST', 'INVITE'], // JOIN_REQUEST = User ne kiya, INVITE = Team ne kiya
+    enum: ['JOIN_REQUEST', 'INVITE'], 
     required: true
   },
   status: {
@@ -27,12 +27,12 @@ const requestSchema = new mongoose.Schema({
     enum: ['PENDING', 'ACCEPTED', 'REJECTED'],
     default: 'PENDING'
   },
-  message: { // Optional message (e.g., "Mujhe React aata hai")
+  message: { 
     type: String
   }
 }, { timestamps: true });
 
-// Ek user ek team ko baar baar request na bhej sake
+
 requestSchema.index({ team: 1, user: 1, event: 1 }, { unique: true });
 
 module.exports = mongoose.model('TeamRequest', requestSchema);

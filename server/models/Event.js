@@ -11,7 +11,7 @@ const pollSchema = new mongoose.Schema({
 });
 
 const eventSchema = new mongoose.Schema({
-  // --- 1. BASIC INFO ---
+
   title: {
     type: String, required: [true, 'Please provide event title'], trim: true
   },
@@ -19,12 +19,12 @@ const eventSchema = new mongoose.Schema({
     type: String, required: [true, 'Please provide description']
   },
   
-  // 🔥 NEW: Event Banner Image URL
+
   banner: {
     type: String, default: ""
   },
 
-  // --- 2. TIME & VENUE ---
+
   date: {
     type: Date, required: [true, 'Please provide event date']
   },
@@ -35,7 +35,7 @@ const eventSchema = new mongoose.Schema({
     type: Date, required: true
   },
 
-  // --- 3. CATEGORY & PRICE ---
+
   category: {
     type: String,
     enum: ['Tech', 'Cultural', 'Sports', 'Workshop', 'Seminar'],
@@ -45,35 +45,47 @@ const eventSchema = new mongoose.Schema({
     type: Number, default: 0
   },
 
-  // --- 4. SEATS & PARTICIPANTS ---
+  
   maxSeats: { 
     type: Number, required: true
   },
   
-  // 🔥 NEW: Solo Participants ki list (Jo team me nahi hain)
+ 
   participants: [{ 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User' 
   }],
 
-  // --- 5. TEAM LOGIC ---
+
+  joinedTeams: [{ 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Team' 
+  }],
+
+
   isTeamEvent: {
-    type: Boolean, default: false // True = Hackathon, False = Seminar
+    type: Boolean, default: false 
   },
   teamSize: { 
     min: { type: Number, default: 1 },
     max: { type: Number, default: 4 }
   },
 
-  // --- 6. LIVE FEATURES ---
+
   isLive: {
     type: Boolean, default: false
   },
   polls: [pollSchema],
   
-  // --- 7. ORGANIZER ---
+
   organizer: {
     type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true
+  },
+
+
+  cachedAiSummary: {
+    type: String,
+    default: ""
   },
   
   createdAt: { type: Date, default: Date.now }

@@ -3,14 +3,13 @@ import { getMyTeam, getFinderUsers, sendInvite } from '../api';
 import { toast } from 'react-hot-toast';
 import { Search, Send, Users, Loader2, GraduationCap, AlertCircle, MessageCircle, X, CheckCircle, UserCheck } from 'lucide-react';
 import AuthContext from '../context/AuthContext';
-// 🔥 MENTOR FIX: useNavigate import kiya taaki user wapas Dashboard ja sake
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import ChatBox from '../components/ChatBox';
 
 const Finder = () => {
   const { user } = useContext(AuthContext);
   const location = useLocation();
-  const navigate = useNavigate(); // 🔥 Router Hook added
+  const navigate = useNavigate();
 
   const queryParams = new URLSearchParams(location.search);
   const eventIdFromUrl = queryParams.get('eventId');
@@ -27,6 +26,9 @@ const Finder = () => {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatRecipient, setChatRecipient] = useState(null);
 
+  // Full screen image view ke liye
+  const [fullscreenImage, setFullscreenImage] = useState(null);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -37,11 +39,11 @@ const Finder = () => {
             const teams = Array.isArray(teamRes.data) ? teamRes.data : (teamRes.data ? [teamRes.data] : []);
             
             const myId = user?._id || user?.id;
-            const myLedTeams = teams.filter(t => String(t.leader?._id || t.leader) === String(myId));
+            const myLedTeams = teams.filter(t => String(t.leader?._id || t.leader) === String(myId) && t.isOpen !== false);
             setLeaderTeams(myLedTeams);
 
         } catch (err) {
-            console.log("User has no team yet.");
+            console.log("User has no active open team.");
         }
 
         const studentRes = await getFinderUsers(); 
@@ -60,7 +62,7 @@ const Finder = () => {
 
   const handleInviteClick = (student) => {
       if (leaderTeams.length === 0) {
-          toast.error("You need to create a Team first!");
+          toast.error("You need an open, unfinalized team to invite members!");
           return;
       }
       setSelectedStudent(student);
@@ -94,7 +96,7 @@ const Finder = () => {
 
   const openChat = (student) => {
       if (leaderTeams.length === 0) {
-          toast.error("Create a team first to start chatting!");
+          toast.error("Create an open team first to start chatting!");
           return;
       }
       setChatRecipient(student);
@@ -118,37 +120,37 @@ const Finder = () => {
     <div className="bg-transparent min-h-screen relative text-gray-100">
       <div className="max-w-7xl mx-auto px-4 py-8">
         
-        {/* 🔥 EXPERT FIX: TOPBAR ADDED EXACTLY LIKE DASHBOARD */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-black text-white tracking-tight drop-shadow-md">Find Teammates </h1>
             <p className="text-gray-300 font-medium mt-1">Discover talented students looking for a team.</p>
           </div>
           
-          {/* Glass Tab Bar */}
-          <div className="flex bg-white/5 backdrop-blur-2xl p-1.5 rounded-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] border border-white/10 overflow-x-auto max-w-full">
-             {/* Find Talent is ACTIVE here */}
-             <button className="px-5 py-2 rounded-xl font-bold text-xs uppercase tracking-widest bg-orange-500/20 text-orange-400 border border-orange-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)] transition-all flex items-center gap-2">
+          {/* 🔥 FIX 5: Navbar styling exactly match kiya aur Profile add kiya */}
+          <div className="flex bg-white/5 backdrop-blur-2xl p-1.5 rounded-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] border border-white/10 overflow-x-auto max-w-full custom-scrollbar">
+             <style>
+              {` .custom-scrollbar::-webkit-scrollbar { height: 0px; } `}
+             </style>
+             <button className="px-5 py-2 rounded-xl font-bold text-xs uppercase tracking-widest bg-orange-500/20 text-orange-400 border border-orange-500/30 shadow-[0_0_15px_rgba(245,158,11,0.2)] transition-all flex items-center gap-2 whitespace-nowrap">
                <Search size={14} /> Find Talent
              </button>
-             {/* Baaki Tabs pe click karte hi user wapas Dashboard pe chala jayega */}
-             {['events', 'my_hub', 'inbox', 'profile'].map((tab) => (
+             {['events', 'my_hub', 'inbox'].map((tab) => (
                <button 
                  key={tab} 
-                 onClick={() => navigate('/student-dashboard')} 
-                 className="px-5 py-2 rounded-xl font-bold text-sm transition-all whitespace-nowrap text-gray-300 hover:bg-white/10 hover:text-white"
+                 onClick={() => navigate(`/student-dashboard?tab=${tab}`)} 
+                 className="px-5 py-2 rounded-xl font-bold text-xs tracking-widest uppercase transition-all whitespace-nowrap text-gray-300 hover:bg-white/10 border border-transparent"
                >
-                 {tab.replace('_', ' ').toUpperCase()}
+                 {tab.replace('_', ' ')}
                </button>
              ))}
+             <button onClick={() => navigate('/profile')} className="px-5 py-2 rounded-xl font-bold text-xs tracking-widest uppercase transition-all whitespace-nowrap text-gray-300 hover:bg-white/10 border border-transparent">PROFILE</button>
           </div>
         </div>
 
-        {/* 🔥 SEARCH & FILTER ROW (Shifted neatly below the Topbar) */}
         <div className="flex flex-col md:flex-row justify-end items-center gap-4 mb-8">
             {leaderTeams.length === 0 && !loading && (
-               <Link to="/student-dashboard" className="text-sm text-red-400 font-bold bg-red-500/10 px-4 py-2 rounded-xl hover:bg-red-500/20 flex items-center gap-2 border border-red-500/20 transition-all backdrop-blur-md">
-                 <AlertCircle size={16}/> Create Team First
+               <Link to="/student-dashboard?tab=events" className="text-sm text-red-400 font-bold bg-red-500/10 px-4 py-2 rounded-xl hover:bg-red-500/20 flex items-center gap-2 border border-red-500/20 transition-all backdrop-blur-md">
+                 <AlertCircle size={16}/> Create an Open Team First
                </Link>
             )}
 
@@ -164,7 +166,6 @@ const Finder = () => {
             </div>
         </div>
 
-        {/* Content (100% UNTOUCHED Glass Logic) */}
         {loading ? (
           <div className="flex justify-center items-center h-64 text-orange-400">
             <Loader2 size={48} className="animate-spin drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]" />
@@ -177,13 +178,22 @@ const Finder = () => {
                   
                   <div>
                       <div className="flex items-center gap-4 mb-4">
-                        <div className="w-14 h-14 bg-orange-500/10 border border-orange-500/20 text-orange-400 rounded-2xl flex items-center justify-center font-black text-xl shadow-[inset_0_0_15px_rgba(245,158,11,0.05)]">
-                          {student.name ? student.name[0].toUpperCase() : "U"}
-                        </div>
+                        {student.profilePic ? (
+                            <img 
+                                src={student.profilePic} 
+                                alt={student.name} 
+                                onClick={() => setFullscreenImage(student.profilePic)}
+                                className="w-32 h-32 rounded-2xl object-cover border border-white/10 shadow-[0_0_15px_rgba(245,158,11,0.15)] shrink-0 cursor-pointer hover:scale-105 hover:opacity-90 transition-all" 
+                            />
+                        ) : (
+                            <div className="w-32 h-32 bg-orange-500/10 border border-orange-500/20 text-orange-400 rounded-2xl flex items-center justify-center font-black text-3xl shadow-[inset_0_0_15px_rgba(245,158,11,0.05)] shrink-0">
+                              {student.name ? student.name[0].toUpperCase() : "U"}
+                            </div>
+                        )}
                         <div>
-                          <h3 className="font-bold text-lg text-white leading-tight drop-shadow-md">{student.name}</h3>
+                          <h3 className="font-bold text-xl text-white leading-tight drop-shadow-md">{student.name}</h3>
                           <div className="flex items-center gap-2 text-gray-300 text-xs font-bold uppercase tracking-wider mt-1 drop-shadow-sm">
-                            <GraduationCap size={14} className="text-orange-400" /> {student.department || 'General'} • {student.year || 'N/A'} Yr
+                            <GraduationCap size={14} className="text-orange-400" /> {student.department || 'General'} • {student.year || 'N/A'} Yr • {student.gender || 'N/A'}
                           </div>
                         </div>
                       </div>
@@ -280,6 +290,7 @@ const Finder = () => {
             </div>
         )}
 
+        {/* CHAT BOX */}
         {chatOpen && chatRecipient && (
             <ChatBox 
                 recipientId={chatRecipient._id} 
@@ -287,6 +298,30 @@ const Finder = () => {
                 onClose={() => setChatOpen(false)} 
             />
         )}
+
+        {/* FULLSCREEN IMAGE MODAL */}
+        {fullscreenImage && (
+            <div 
+                className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in"
+                onClick={() => setFullscreenImage(null)}
+            >
+                <div className="relative max-w-2xl w-full flex justify-center animate-in zoom-in-95 duration-300">
+                    <button 
+                        onClick={() => setFullscreenImage(null)} 
+                        className="absolute -top-12 right-0 bg-white/10 p-2 rounded-full text-gray-300 hover:text-white hover:bg-white/20 transition-all shadow-lg"
+                    >
+                        <X size={24} />
+                    </button>
+                    <img 
+                        src={fullscreenImage} 
+                        alt="Profile Full Size" 
+                        className="max-w-full max-h-[85vh] rounded-[2rem] object-contain shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-white/20"
+                        onClick={(e) => e.stopPropagation()} 
+                    />
+                </div>
+            </div>
+        )}
+
       </div>
     </div>
   );

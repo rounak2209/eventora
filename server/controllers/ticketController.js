@@ -18,6 +18,10 @@ const bookTicket = async (req, res) => {
         const event = await Event.findById(eventId);
         if (!event) return res.status(404).json({ message: "Event not found" });
 
+
+        event.participants = event.participants || [];
+        event.joinedTeams = event.joinedTeams || [];
+
         let finalUsersList = [];
         let team = null;
 
@@ -31,8 +35,28 @@ const bookTicket = async (req, res) => {
                 return res.status(400).json({ message: "You need a team to register for this event." });
             }
 
-            let allMemberIds = [team.leader, ...team.members];
-            let uniqueIds = [...new Set(allMemberIds.map(id => id.toString()))];
+            // SMART VALIDATION 1: Team Size Checking (Min & Max)
+            //  ek Set use kar rahe hu taaki agar galti se leader members array me bhi ho, toh double count na ho
+            const allTeamMembers = [team.leader, ...(team.members || [])];
+            const uniqueTeamMembersCount = new Set(allTeamMembers.map(id => id.toString())).size;
+            
+            const minSize = Number(event.teamSize?.min || 1);
+            const maxSize = Number(event.teamSize?.max || 4);
+
+            if (uniqueTeamMembersCount < minSize || uniqueTeamMembersCount > maxSize) {
+                return res.status(400).json({ 
+                    message: `Invalid team size! This event requires minimum ${minSize} and maximum ${maxSize} members. Your squad currently has ${uniqueTeamMembersCount} member(s).` 
+                });
+            }
+
+            //  SMART VALIDATION 2: Max Seats (Total Teams Limit) Checking
+            const isTeamAlreadyJoined = event.joinedTeams.some(tId => tId.toString() === team._id.toString());
+            
+            if (!isTeamAlreadyJoined && event.joinedTeams.length >= event.maxSeats) {
+                return res.status(400).json({ message: "Max slots reached! No more teams can join this event. 🚫" });
+            }
+
+            let uniqueIds = [...new Set(allTeamMembers.map(id => id.toString()))];
 
             await Registration.deleteMany({
                 event: eventId,
@@ -42,6 +66,13 @@ const bookTicket = async (req, res) => {
             finalUsersList = await User.find({ _id: { $in: uniqueIds } });
         } 
         else {
+            //  SMART VALIDATION 3: Solo Event Max Seats Checking
+            const isUserAlreadyJoined = event.participants.some(pId => pId.toString() === userId.toString());
+            
+            if (!isUserAlreadyJoined && event.participants.length >= event.maxSeats) {
+                return res.status(400).json({ message: "Max slots reached! Event is Housefull. 🚫" });
+            }
+
             await Registration.deleteOne({ event: eventId, user: userId });
             finalUsersList = [req.user];
         }
@@ -57,7 +88,7 @@ const bookTicket = async (req, res) => {
                     type: "GATE_PASS"
                 });
 
-                // 🔥 THE HACK: Live QR Code URL for Gmail (No Block!)
+                // Live QR Code URL for Gmail (No Block!)
                 const qrLiveUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrPayload)}`;
 
                 const qrImage = await QRCode.toDataURL(qrPayload);
@@ -76,7 +107,7 @@ const bookTicket = async (req, res) => {
                     event.participants.push(member._id);
                 }
 
-                // 🔥 FIX: 'cid:' hata kar 'qrLiveUrl' lagaya taaki mobile par seedha dikhe
+
                 const emailTemplate = `
                     <div style="font-family: sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 15px; max-width: 500px;">
                         <h2 style="color: #4f46e5;">Registration Confirmed! 🎉</h2>
@@ -97,7 +128,6 @@ const bookTicket = async (req, res) => {
                     email: member.email,
                     subject: `🎟️ Entry Pass: ${event.title}`,
                     message: emailTemplate,
-                    // Niche download ke liye attachment bhi safe rakha hai
                     attachments: [{ filename: 'ticket-qr.png', content: qrBase64 }] 
                 });
 
@@ -106,6 +136,16 @@ const bookTicket = async (req, res) => {
             } catch (err) {
                 console.error(`Error processing ticket for ${member.email}:`, err.message);
                 results.push({ email: member.email, status: "Failed", error: err.message });
+            }
+        }
+
+        if (team) {
+            team.isOpen = false;
+            await team.save();
+            
+            // 🔥 UPDATE TEAM IN EVENT ARRAY (Track Total Teams Joined)
+            if (!event.joinedTeams.includes(team._id)) {
+                event.joinedTeams.push(team._id);
             }
         }
 

@@ -24,7 +24,7 @@ const Navbar = () => {
 
   const isActive = (path) => location.pathname === path;
 
-  // 🔥 UNIVERSAL ROUTING 
+
   const goToDashboard = () => {
     setIsProfileOpen(false);
     const role = user?.role || localStorage.getItem('role');
@@ -35,7 +35,7 @@ const Navbar = () => {
 
   const goToProfile = () => {
     setIsProfileOpen(false);
-    navigate('/profile'); // 🔥 Ab sab "/profile" par jayenge!
+    navigate('/profile');
   };
 
   return (
@@ -75,7 +75,7 @@ const Navbar = () => {
                         <p className="text-sm font-bold text-white truncate">{user.email}</p>
                     </div>
 
-                    {/* 🔥 Dashboard aur Profile Dono Wapas Aagaye */}
+
                     <button onClick={goToDashboard} className="w-full flex items-center gap-4 px-5 py-3 text-sm font-bold text-gray-300 hover:bg-orange-500/10 hover:text-orange-400 transition-all group">
                       <Layout size={18} className="group-hover:scale-110 transition-transform" /> Dashboard
                     </button>

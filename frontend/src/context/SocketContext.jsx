@@ -12,7 +12,7 @@ export const SocketProvider = ({ children }) => {
         if (user) {
             const newSocket = io(SOCKET_URL);
             
-            // 🔥 IMPORTANT: Ensure we join the room immediately upon connection
+            // Ensure we join the room immediately upon connection
             newSocket.on('connect', () => {
                 const userId = user._id || user.id;
                 newSocket.emit("join", userId);

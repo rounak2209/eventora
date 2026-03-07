@@ -40,7 +40,6 @@ const GatekeeperDashboard = () => {
   return (
     <div className="min-h-screen bg-transparent pb-20 text-gray-100 font-sans selection:bg-orange-500/30 overflow-x-hidden">
       
-      {/* Main Content Area */}
       <main className="max-w-7xl mx-auto p-6 md:p-10 pt-8">
         
         {events.length === 0 ? (
